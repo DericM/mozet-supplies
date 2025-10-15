@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/routes/app.labels.print.ts
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs, HeadersFunction } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 
 const QR_BASE = "https://quickchart.io/qr";
 
@@ -199,3 +200,5 @@ export async function action({ request }: ActionFunctionArgs) {
   search.set("ids", idsCsv);
   return redirect(`/app/labels/print?${search.toString()}`);
 }
+
+export const headers: HeadersFunction = (args) => boundary.headers(args);

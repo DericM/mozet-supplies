@@ -1,11 +1,12 @@
 // app/routes/app.tsx
 import '@shopify/polaris/build/esm/styles.css';
-import type { LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
 import { Outlet, useLoaderData } from "react-router";
 import { AppProvider as AppBridgeProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
 import en from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 
 // app/routes/app.tsx
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -16,6 +17,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const appOrigin = new URL(request.url).origin; // ← your tunnel origin here
   return { apiKey, appOrigin };
 };
+
+export const headers: HeadersFunction = (args) => boundary.headers(args);
 
 export default function AppLayout() {
   const { apiKey, appOrigin } = useLoaderData<typeof loader>();

@@ -1,22 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { LoaderFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const headers: HeadersFunction = (args) => boundary.headers(args);
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // Make sure we’re in an authenticated embedded context
-  await authenticate.admin(request);
-
+  // Do NOT require admin auth here. This page only exists to perform a client-side
+  // App Bridge redirect and should be publicly reachable in embedded context.
   const url = new URL(request.url);
   const params = new URLSearchParams(url.search);
 
   const ids = params.get("ids");
   if (!ids) return new Response("Missing ids", { status: 400 });
-  // Force embedded context to make Shopify happy
   if (!params.get("embedded")) params.set("embedded", "1");
 
-  // Destination: your existing printable HTML route on YOUR origin
   const destination = new URL(`/app/labels/print?${params.toString()}`, url.origin).toString();
-
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
   const html = `<!doctype html>
@@ -42,12 +40,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       var Redirect = window['app-bridge'].actions.Redirect;
       var redirect = Redirect.create(app);
 
-      // bust caches so idle → stale page isn’t reused
       var dest = new URL(${JSON.stringify(destination)});
-      dest.searchParams.set('_t', Date.now().toString());
-
-      // Top-level navigation with session-token refresh
-      //redirect.dispatch(Redirect.Action.REMOTE, { url: dest.toString(), newContext: true });
       redirect.dispatch(Redirect.Action.REMOTE, dest.toString());
     })();
   </script>

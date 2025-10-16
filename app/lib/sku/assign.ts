@@ -35,6 +35,7 @@ type VariantSetInput = {
   sku: string;
   optionValues: Array<{ optionName: string; name: string }>;
 };
+
 type OptionSetInput = {
   name: string;
   position?: number | null;
@@ -62,12 +63,18 @@ function buildVariantOptionValues(v: VariantForSku) {
     : [{ optionName: "Title", name: "Default Title" }];
 }
 
-export async function ensureSkusForProduct(admin: AdminClient, productGid: string) {
+export async function ensureSkusForProduct(
+  admin: AdminClient,
+  productGid: string,
+  opts?: { overwrite?: boolean }
+) {
   console.log("[assign] begin", productGid);
+
+  const overwrite = Boolean(opts?.overwrite);
 
   // 1) Load product + variants
   const pRes = await admin.graphql(PRODUCT_FOR_SKU_Q, { variables: { id: productGid } });
-  const pJson = await pRes.json() as { data?: { product: ProductForSku | null } };
+  const pJson = (await pRes.json()) as { data?: { product: ProductForSku | null } };
   const product = pJson.data?.product;
   if (!product) return;
 
@@ -79,19 +86,20 @@ export async function ensureSkusForProduct(admin: AdminClient, productGid: strin
     return;
   }
 
-  // 2) Compute group from product fields using your original helper signature
+  // 2) Compute group from product fields
   const group = groupKey(product.productType ?? undefined, product.vendor ?? undefined);
 
-  // 3) Prepare patches ONLY for variants with blank SKUs
+  // 3) Prepare patches
   const toUpdate: VariantSetInput[] = [];
   for (const v of product.variants.nodes as VariantForSku[]) {
-    if (!v.sku || v.sku.trim() === "") {
-      const seq = await reserveNextForGroup(admin, group);     // <- expects (admin, group: string)
-      const desired = formatSku(group, seq);                   // <- expects (group: string, seq: number)
+    const hasSku = !!(v.sku && v.sku.trim() !== "");
+    if (overwrite || !hasSku) {
+      const seq = await reserveNextForGroup(admin, group);
+      const desired = formatSku(group, seq);
       toUpdate.push({
         id: v.id,
         sku: desired,
-        optionValues: buildVariantOptionValues(v),             // required by ProductVariantSetInput
+        optionValues: buildVariantOptionValues(v),
       });
     }
   }
@@ -112,13 +120,13 @@ export async function ensureSkusForProduct(admin: AdminClient, productGid: strin
       input: { productOptions: optionsInput, variants: toUpdate },
     },
   });
-  const mJson = await mRes.json() as {
+  const mJson = (await mRes.json()) as {
     data?: { productSet?: { userErrors?: Array<{ field?: string[]; message: string }> } };
   };
   const errs = mJson.data?.productSet?.userErrors ?? [];
   if (errs.length) {
     console.error("[assign-error]", errs);
-    throw new Error(errs.map(e => `${(e.field ?? []).join(".")}: ${e.message}`).join("; "));
+    throw new Error(errs.map((e) => `${(e.field ?? []).join(".")}: ${e.message}`).join("; "));
   }
 
   console.log(`[assign] updated ${toUpdate.length} variant SKUs`);

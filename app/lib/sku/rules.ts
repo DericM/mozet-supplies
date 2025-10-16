@@ -88,4 +88,4 @@ export const groupKey = (typeRaw?: string, vendorRaw?: string) =>
   `${typeToTTT(typeRaw)}-${vendorToVVV(vendorRaw)}`;
 
 export const formatSku = (group: string, n: number) =>
-  `${group}-${String(n).padStart(3, "0")}`;
+  `${group}-${n.toString(16).toUpperCase().padStart(4, "0")}`;

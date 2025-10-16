@@ -71,6 +71,14 @@ export async function ensureSkusForProduct(admin: AdminClient, productGid: strin
   const product = pJson.data?.product;
   if (!product) return;
 
+  // Require both vendor and productType to be present (non-blank)
+  const vendor = (product.vendor ?? "").trim();
+  const type = (product.productType ?? "").trim();
+  if (!vendor || !type) {
+    console.log("[assign] skip: missing vendor/type", { vendor: Boolean(vendor), type: Boolean(type) });
+    return;
+  }
+
   // 2) Compute group from product fields using your original helper signature
   const group = groupKey(product.productType ?? undefined, product.vendor ?? undefined);
 

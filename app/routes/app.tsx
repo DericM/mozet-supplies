@@ -7,6 +7,8 @@ import { AppProvider as PolarisProvider } from "@shopify/polaris";
 import en from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import {NavMenu} from '@shopify/app-bridge-react';
+
 
 // app/routes/app.tsx
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -40,6 +42,10 @@ export default function AppLayout() {
             `,
           }}
         />
+        <NavMenu>
+          <a href="/app" rel="home">Labels</a>
+          <a href="/app/readme">Readme</a>
+        </NavMenu>
         <Outlet />
       </AppBridgeProvider>
     </PolarisProvider>

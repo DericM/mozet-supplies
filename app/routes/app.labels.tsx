@@ -270,7 +270,7 @@ export default function Labels() {
 
 
   return (
-    <Page title="Generate & Print Labels">
+    <Page title="Generate & Print Labels" fullWidth>
       <Card>
         {/* Top: search + actions */}
         <div style={{ display: "flex", gap: 12, justifyContent: "space-between", alignItems: "center" }}>

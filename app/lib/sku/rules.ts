@@ -37,14 +37,50 @@ function abbreviate3(input?: string): string {
   return out.join("");
 }
 
-// Type → TTT
-export function typeToTTT(typeRaw?: string): string {
-  return abbreviate3(typeRaw);
+// New helper: prioritize initials from multi‑word strings, then fall back to abbreviate3
+function initialsPriorityAbbrev3(inputRaw?: string): string {
+  const input = inputRaw || "";
+  const tokens = input.match(/[A-Za-z0-9]+/g) || [];
+
+  if (tokens.length >= 2) {
+    const initials = tokens.map((t) => t[0]!.toUpperCase());
+    const out: string[] = [];
+
+    // Take first letter of each word
+    for (const ch of initials) {
+      if (out.length >= 3) break;
+      const prev = out[out.length - 1];
+      if (ch === prev) continue;
+      out.push(ch);
+    }
+
+    // Fill remaining with classic abbreviation behavior
+    if (out.length < 3) {
+      const abbr = abbreviate3(input);
+      for (const ch of abbr) {
+        if (out.length >= 3) break;
+        const prev = out[out.length - 1];
+        if (ch === prev) continue;
+        out.push(ch);
+      }
+    }
+
+    while (out.length < 3) out.push("X");
+    return out.join("");
+  }
+
+  // Single-word or empty
+  return abbreviate3(inputRaw);
 }
 
-// Vendor → VVV
+// Type → TTT
+export function typeToTTT(typeRaw?: string): string {
+  return initialsPriorityAbbrev3(typeRaw);
+}
+
+// Vendor → VVV (now also prioritizes initials for multi‑word vendors)
 export function vendorToVVV(vendorRaw?: string): string {
-  return abbreviate3(vendorRaw);
+  return initialsPriorityAbbrev3(vendorRaw);
 }
 
 // Group key and SKU formatting

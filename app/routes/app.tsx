@@ -14,7 +14,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const apiKey = process.env.SHOPIFY_API_KEY;
   if (!apiKey) throw new Response("Missing SHOPIFY_API_KEY", { status: 500 });
 
-  const appOrigin = new URL(request.url).origin; // ← your tunnel origin here
+  const appOrigin = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
   return { apiKey, appOrigin };
 };
 

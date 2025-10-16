@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    image: skus-and-labels:latest
+    environment:
+      NODE_ENV: production
+      # Set this to your public HTTPS origin
+      SHOPIFY_APP_URL: https://mozet-supplies.dericm.dev
+      # Provide the rest via an .env file or your platform's secret manager
+      # SHOPIFY_API_KEY: ${SHOPIFY_API_KEY}
+      # SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET}
+      # SCOPES: ${SCOPES}
+      # DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Persist Prisma SQLite file across restarts
+    volumes:
+      - prisma-data:/app/prisma
+    # App listens on 3000 inside the network; not exposed publicly (Caddy proxies it)
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  prisma-data:
+  caddy-data:
+  caddy-config:

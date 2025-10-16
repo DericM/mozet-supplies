@@ -1,0 +1,13 @@
+mozet-supplies.dericm.dev {
+  encode zstd gzip
+
+  # Optional: receive expiry notifications
+  # tls you@example.com
+
+  # Proxy to the app service inside the compose network
+  reverse_proxy app:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up Host {host}
+  }
+}

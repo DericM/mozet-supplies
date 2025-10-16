@@ -18,6 +18,7 @@ import {
   TextField,
   Text,
   Thumbnail,
+  Checkbox,
 } from "@shopify/polaris";
 
 import type { LoaderFunctionArgs } from "react-router";
@@ -201,13 +202,19 @@ export default function Labels() {
         .map((r) => r.productId)
     )
   );
-  const canAddSkus = productIdsNeedingSkus.length > 0 && addFetcher.state === "idle";
+  const selectedProductIds = Array.from(new Set(selectedRows.map((r) => r.productId)));
+
+  const [overwrite, setOverwrite] = useState(false);
+  const canAddSkus = (overwrite ? selectedProductIds.length > 0 : productIdsNeedingSkus.length > 0) && addFetcher.state === "idle";
 
   function onAddSkus() {
     if (!canAddSkus) return;
     const params = new URLSearchParams(location.search); // keep ?host=&shop=&embedded
+    const ids = overwrite ? selectedProductIds : productIdsNeedingSkus;
+    const body: Record<string, string> = { productIds: ids.join(",") };
+    if (overwrite) body.force = "1";
     addFetcher.submit(
-      { productIds: productIdsNeedingSkus.join(",") },
+      body,
       { method: "post", action: `/app/labels/add-skus?${params.toString()}` }
     );
   }
@@ -288,27 +295,29 @@ export default function Labels() {
             </Text>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button
-              onClick={() => setInput("")}
-              disabled={!input}
-            >
-              Clear
-            </Button>
+             {/* Add/Overwrite SKUs */}
+             <Button
+               onClick={onAddSkus}
+               disabled={!canAddSkus}
+               tone="success"
+             >
+               {addFetcher.state !== "idle" ? (overwrite ? "Overwriting…" : "Adding SKUs…") : (overwrite ? "Overwrite SKUs" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`)}
+             </Button>
 
-            {/* Add SKUs (enabled only if selected rows have missing SKUs) */}
-            <Button
-              onClick={onAddSkus}
-              disabled={!canAddSkus}
-              tone="success"
-            >
-              {addFetcher.state !== "idle" ? "Adding SKUs…" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`}
-            </Button>
+             {/* Overwrite toggle (moved to the right of the button) */}
+             <div style={{ display: "flex", alignItems: "center", paddingInline: 8, marginRight: 12 }}>
+               <Checkbox
+                 label="Overwrite"
+                 checked={overwrite}
+                 onChange={setOverwrite}
+               />
+             </div>
 
-            {/* Print stays the same */}
-            <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
-              Print {hasSelection ? `(${selectedResources.length})` : ""}
-            </Button>
-          </div>
+             {/* Print stays the same */}
+             <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
+               Print {hasSelection ? `(${selectedResources.length})` : ""}
+             </Button>
+           </div>
         </div>
 
         {/* Table */}
@@ -372,26 +381,27 @@ export default function Labels() {
         {/* Bottom-right actions */}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button
-              onClick={() => setInput("")}
-              disabled={!input}
-            >
-              Clear
-            </Button>
+             <Button
+               onClick={onAddSkus}
+               disabled={!canAddSkus}
+               tone="success"
+             >
+               {addFetcher.state !== "idle" ? (overwrite ? "Overwriting…" : "Adding SKUs…") : (overwrite ? "Overwrite SKUs" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`)}
+             </Button>
 
-            {/* Add SKUs (enabled only if selected rows have missing SKUs) */}
-            <Button
-              onClick={onAddSkus}
-              disabled={!canAddSkus}
-              tone="success"
-            >
-              {addFetcher.state !== "idle" ? "Adding SKUs…" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`}
-            </Button>
+             {/* Overwrite toggle (to the right of the button) */}
+             <div style={{ display: "flex", alignItems: "center", paddingInline: 8, marginRight: 12 }}>
+               <Checkbox
+                 label="Overwrite"
+                 checked={overwrite}
+                 onChange={setOverwrite}
+               />
+             </div>
 
-            <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
-              Print {hasSelection ? `(${selectedResources.length})` : ""}
-            </Button>
-          </div>
+             <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
+               Print {hasSelection ? `(${selectedResources.length})` : ""}
+             </Button>
+           </div>
         </div>
       </Card>
     </Page>

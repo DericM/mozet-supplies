@@ -13,11 +13,15 @@ ENV NODE_ENV=production \
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force \
+# Install ALL deps for build (includes devDependencies)
+RUN npm ci \
 	&& npm remove @shopify/cli || true
 
 COPY . .
 
-RUN npm run build
+# Build app (requires devDependencies like Vite)
+RUN npm run build \
+	&& npm prune --omit=dev \
+	&& npm cache clean --force
 
 CMD ["npm", "run", "docker-start"]

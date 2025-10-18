@@ -1,18 +1,20 @@
-FROM node:20-alpine
-RUN apk add --no-cache openssl
+FROM node:20-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+		openssl ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Avoid downloading Chromium during install (Puppeteer) – not needed at runtime
+ENV NODE_ENV=production \
+		PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force
-# Remove CLI packages since we don't need them in production by default.
-# Remove this line if you want to run CLI commands in your container.
-RUN npm remove @shopify/cli || true
+RUN npm ci --omit=dev && npm cache clean --force \
+	&& npm remove @shopify/cli || true
 
 COPY . .
 

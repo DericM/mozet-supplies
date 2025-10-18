@@ -37,40 +37,54 @@ function abbreviate3(input?: string): string {
   return out.join("");
 }
 
-// New helper: prioritize initials from multi‑word strings, then fall back to abbreviate3
+// New helper: build candidates with priorities and eliminate from right-to-left
+// Priority rules:
+//  - Priority 1: Leading letters of each word (first char per token)
+//  - Priority 2: Consonants and digits (non-leading characters)
+//  - Priority 3: Vowels (non-leading characters)
+// We eliminate from right to left by priority (3, then 2, then 1) until 3 remain.
 function initialsPriorityAbbrev3(inputRaw?: string): string {
   const input = inputRaw || "";
   const tokens = input.match(/[A-Za-z0-9]+/g) || [];
 
-  if (tokens.length >= 2) {
-    const initials = tokens.map((t) => t[0]!.toUpperCase());
-    const out: string[] = [];
+  const isVowel = (ch: string) => /^[AEIOU]$/.test(ch);
 
-    // Take first letter of each word
-    for (const ch of initials) {
-      if (out.length >= 3) break;
-      const prev = out[out.length - 1];
-      if (ch === prev) continue;
-      out.push(ch);
+  // Build ordered candidate list from left to right across tokens
+  const candidates: Array<{ ch: string; pr: 1 | 2 | 3 }> = [];
+  for (const tok of tokens) {
+    const upper = tok.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!upper) continue;
+    for (let i = 0; i < upper.length; i++) {
+      const ch = upper[i]!;
+      let pr: 1 | 2 | 3;
+      if (i === 0) pr = 1; // leading letter of the word
+      else if (/\d/.test(ch)) pr = 2; // digits behave like consonants
+      else pr = isVowel(ch) ? 3 : 2;
+      candidates.push({ ch, pr });
     }
-
-    // Fill remaining with classic abbreviation behavior
-    if (out.length < 3) {
-      const abbr = abbreviate3(input);
-      for (const ch of abbr) {
-        if (out.length >= 3) break;
-        const prev = out[out.length - 1];
-        if (ch === prev) continue;
-        out.push(ch);
-      }
-    }
-
-    while (out.length < 3) out.push("X");
-    return out.join("");
   }
 
-  // Single-word or empty
-  return abbreviate3(inputRaw);
+  // If nothing usable, fall back
+  if (candidates.length === 0) return abbreviate3(inputRaw);
+
+  // Eliminate from right to left by priority until only 3 remain
+  const removeByPriority = (p: 1 | 2 | 3) => {
+    for (let i = candidates.length - 1; i >= 0 && candidates.length > 3; i--) {
+      if (candidates[i]!.pr === p) candidates.splice(i, 1);
+    }
+  };
+
+  if (candidates.length > 3) removeByPriority(3);
+  if (candidates.length > 3) removeByPriority(2);
+  if (candidates.length > 3) removeByPriority(1);
+
+  // If still longer than 3 (all same priority), keep the left-most 3
+  while (candidates.length > 3) candidates.pop();
+
+  // If shorter than 3, pad with X
+  while (candidates.length < 3) candidates.push({ ch: "X", pr: 2 });
+
+  return candidates.map((c) => c.ch).join("");
 }
 
 // Type → TTT

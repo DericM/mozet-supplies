@@ -21,4 +21,4 @@ uri = "/webhooks"
 scopes = "read_products,write_products"
 
 [auth]
-redirect_urls = [ "https://mozet-supplies.dericm.dev/api/auth" ]
+redirect_urls = [ "https://mozet-supplies.dericm.dev/auth/callback" ]

@@ -206,6 +206,7 @@ export default function Labels() {
 
   const [overwrite, setOverwrite] = useState(false);
   const canAddSkus = (overwrite ? selectedProductIds.length > 0 : productIdsNeedingSkus.length > 0) && addFetcher.state === "idle";
+  const selectedCount = selectedResources.length;
 
   // Direct print: fetch printable HTML with a session token, inject into a hidden iframe, and call print()
   async function onPrintDirect() {
@@ -356,14 +357,16 @@ export default function Labels() {
               {nav.state !== "idle" ? "Loading…" : `${rows.length} results${q ? ` for “${q}”` : ""}`}
             </Text>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
              {/* Add/Overwrite SKUs */}
              <Button
                onClick={onAddSkus}
                disabled={!canAddSkus}
                tone="success"
              >
-               {addFetcher.state !== "idle" ? (overwrite ? "Overwriting…" : "Adding SKUs…") : (overwrite ? "Overwrite SKUs" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`)}
+               {addFetcher.state !== "idle"
+                 ? (overwrite ? `Overwriting ${selectedCount}…` : `Adding ${selectedCount} SKUs…`)
+                 : (overwrite ? `Overwrite ${selectedCount} SKUs` : `Add ${selectedCount} SKUs`)}
              </Button>
 
              {/* Overwrite toggle (moved to the right of the button) */}
@@ -441,14 +444,16 @@ export default function Labels() {
         </div>
 
         {/* Bottom-right actions */}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center", marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
              <Button
                onClick={onAddSkus}
                disabled={!canAddSkus}
                tone="success"
              >
-               {addFetcher.state !== "idle" ? (overwrite ? "Overwriting…" : "Adding SKUs…") : (overwrite ? "Overwrite SKUs" : `Add SKUs${productIdsNeedingSkus.length ? ` (${productIdsNeedingSkus.length})` : ""}`)}
+               {addFetcher.state !== "idle"
+                 ? (overwrite ? `Overwriting ${selectedCount}…` : `Adding ${selectedCount} SKUs…`)
+                 : (overwrite ? `Overwrite ${selectedCount} SKUs` : `Add ${selectedCount} SKUs`)}
              </Button>
 
              {/* Overwrite toggle (to the right of the button) */}

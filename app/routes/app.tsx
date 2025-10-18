@@ -16,32 +16,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const apiKey = process.env.SHOPIFY_API_KEY;
   if (!apiKey) throw new Response("Missing SHOPIFY_API_KEY", { status: 500 });
 
-  const appOrigin = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
-  return { apiKey, appOrigin };
+  return { apiKey };
 };
 
 export const headers: HeadersFunction = (args) => boundary.headers(args);
 
 export default function AppLayout() {
-  const { apiKey, appOrigin } = useLoaderData<typeof loader>();
+  const { apiKey } = useLoaderData<typeof loader>();
 
   return (
     <PolarisProvider i18n={en}>
       <AppBridgeProvider embedded apiKey={apiKey}>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.__SHOPIFY_API_KEY__=${JSON.stringify(apiKey)};
-              window.__APP_ORIGIN__=${JSON.stringify(appOrigin)};
-              (function(){
-                try {
-                  var h = new URLSearchParams(location.search).get('host');
-                  if (h) sessionStorage.setItem('shopify_host', h);
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
         <NavMenu>
           <a href="/app" rel="home">Labels</a>
           <a href="/app/readme">Readme</a>

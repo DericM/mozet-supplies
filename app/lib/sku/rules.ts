@@ -48,19 +48,29 @@ function initialsPriorityAbbrev3(inputRaw?: string): string {
   const tokens = input.match(/[A-Za-z0-9]+/g) || [];
 
   const isVowel = (ch: string) => /^[AEIOU]$/.test(ch);
+  const isConsonant = (ch: string) => /^[A-Z]$/.test(ch) && !isVowel(ch);
 
   // Build ordered candidate list from left to right across tokens
   const candidates: Array<{ ch: string; pr: 1 | 2 | 3 }> = [];
   for (const tok of tokens) {
     const upper = tok.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!upper) continue;
+    let prevChar: string | null = null;
     for (let i = 0; i < upper.length; i++) {
       const ch = upper[i]!;
       let pr: 1 | 2 | 3;
       if (i === 0) pr = 1; // leading letter of the word
       else if (/\d/.test(ch)) pr = 2; // digits behave like consonants
       else pr = isVowel(ch) ? 3 : 2;
+
+      // New rule: if two or more identical consonants in a row within a token,
+      // trailing identical consonants get downgraded to priority 3.
+      if (prevChar && ch === prevChar && isConsonant(ch)) {
+        pr = 3;
+      }
+
       candidates.push({ ch, pr });
+      prevChar = ch;
     }
   }
 

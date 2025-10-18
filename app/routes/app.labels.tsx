@@ -1,14 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/routes/app.labels.tsx  (component section only)
 import { startTransition, useEffect, useRef, useState } from "react";
-import {
-  useFetcher,
-  useLoaderData,
-  useLocation,
-  useNavigate,
-  useNavigation,
-  useRevalidator,
-} from "react-router";
+// (merged into the main react-router import below)
+import { createApp } from "@shopify/app-bridge";
+import { useFetcher, useLoaderData, useLocation, useNavigate, useNavigation, useRevalidator, useMatches } from "react-router";
 import {
   Page,
   Card,
@@ -150,6 +145,11 @@ export default function Labels() {
     pageInfo: { hasNextPage: boolean; hasPreviousPage: boolean; startCursor: string | null; endCursor: string | null };
     q: string;
   };
+  // Helper: resolve apiKey from parent /app route loader via matches
+  // and persist host from the URL for subsequent navigations.
+  const matches = useMatches();
+  const parentData: any = Array.isArray(matches) ? matches.find((m: any) => m?.data && typeof m.data === 'object' && 'apiKey' in m.data)?.data : null;
+  const apiKeyFromParent: string | undefined = parentData ? (parentData as any).apiKey : undefined;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -219,13 +219,17 @@ export default function Labels() {
       const path = `/app/labels/print?${params.toString()}`;
 
       // Get a fresh session token via App Bridge
-      const [{ getAppBridge }, utils] = await Promise.all([
-        import("../lib/appBridge"),
-        import("@shopify/app-bridge/utilities"),
-      ]);
-      const app = getAppBridge();
-      if (!app) throw new Error("App Bridge unavailable");
-      const token = await (utils as unknown as { getSessionToken: (app: unknown) => Promise<string> }).getSessionToken(app);
+      const { getSessionToken } = await import("@shopify/app-bridge/utilities");
+      // Determine host from URL or sessionStorage; persist if present
+      const usp = new URLSearchParams(location.search);
+      const host = usp.get("host") || (typeof window !== "undefined" ? window.sessionStorage.getItem("shopify_host") || undefined : undefined);
+      if (usp.get("host")) {
+        try { window.sessionStorage.setItem("shopify_host", usp.get("host")!); } catch (e) { /* ignore */ }
+      }
+      const apiKey = apiKeyFromParent;
+      if (!apiKey || !host) throw new Error("Missing apiKey/host for App Bridge");
+      const app = createApp({ apiKey, host, forceRedirect: true });
+      const token = await (getSessionToken as (app: unknown) => Promise<string>)(app);
 
       const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
@@ -333,11 +337,6 @@ export default function Labels() {
       { preventScrollReset: true }
     );
   };
-
-  
-  // app/routes/app.labels.tsx
-  // (In-app print preview now fetches HTML and uses iframe srcDoc; no direct URL builder needed.)
-
 
   return (
     <Page title="Generate & Print Labels" fullWidth>
@@ -471,32 +470,6 @@ export default function Labels() {
            </div>
         </div>
       </Card>
-
-      {/* Print Preview Modal */}
-      {/* <Modal
-        open={showPrint}
-        onClose={() => setShowPrint(false)}
-        title="Print preview"
-        primaryAction={{ content: "Print", onAction: doPrint, disabled: !hasSelection }}
-        secondaryActions={[{ content: "Close", onAction: () => setShowPrint(false) }]}>
-        <div style={{ height: "72vh", border: "1px solid #E1E3E5", borderRadius: 6, overflow: "hidden" }}>
-            {!hasSelection ? (
-              <div style={{ padding: 16 }}>No items selected.</div>
-            ) : printLoading ? (
-              <div style={{ padding: 16 }}>Loading preview…</div>
-            ) : printError ? (
-              <div style={{ padding: 16, color: "#b42318" }}>Failed to load preview: {printError}</div>
-            ) : (
-              <iframe
-                ref={iframeRef}
-                // Use srcDoc to avoid session redirects inside an iframe
-                srcDoc={printHtml ?? ""}
-                title="Labels preview"
-                style={{ width: "100%", height: "100%", border: "none" }}
-              />
-            )}
-          </div>
-         </Modal> */}
     </Page>
   );
 }

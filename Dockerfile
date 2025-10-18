@@ -10,7 +10,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json* ./
 RUN npm ci && npm remove @shopify/cli || true
 COPY . .
-RUN npm run build
+RUN npx --no-install react-router build
 
 # ---------- Runtime stage ----------
 FROM base AS runner

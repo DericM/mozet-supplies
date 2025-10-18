@@ -207,6 +207,81 @@ export default function Labels() {
   const [overwrite, setOverwrite] = useState(false);
   const canAddSkus = (overwrite ? selectedProductIds.length > 0 : productIdsNeedingSkus.length > 0) && addFetcher.state === "idle";
 
+  // Direct print: fetch printable HTML with a session token, inject into a hidden iframe, and call print()
+  async function onPrintDirect() {
+    if (!hasSelection) return;
+    try {
+      // Build a relative URL to the printable route with selected ids
+      const params = new URLSearchParams(location.search);
+      params.set("ids", selectedResources.join(","));
+      if (!params.get("embedded")) params.set("embedded", "1");
+      const path = `/app/labels/print?${params.toString()}`;
+
+      // Get a fresh session token via App Bridge
+      const [{ getAppBridge }, utils] = await Promise.all([
+        import("../lib/appBridge"),
+        import("@shopify/app-bridge/utilities"),
+      ]);
+      const app = getAppBridge();
+      if (!app) throw new Error("App Bridge unavailable");
+      const token = await (utils as unknown as { getSessionToken: (app: unknown) => Promise<string> }).getSessionToken(app);
+
+      const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+      }
+      const html = await res.text();
+
+      // Create an offscreen iframe and write the HTML, then print.
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        try {
+          document.body.removeChild(iframe);
+        } catch (e) {
+          console.warn("cleanup failed", e);
+        }
+      };
+
+      const iw = iframe.contentWindow;
+      if (!iw) throw new Error("iframe window unavailable");
+      iw.document.open();
+      iw.document.write(html);
+      iw.document.close();
+
+      // Attempt to print when the iframe has loaded content
+      const onLoad = () => {
+        try {
+          iw.focus();
+          // Afterprint cleanup
+          iw.addEventListener("afterprint", cleanup, { once: true } as any);
+          iw.print();
+          // Fallback cleanup in case afterprint doesn’t fire
+          setTimeout(cleanup, 4000);
+        } catch (e) {
+          console.error("print error", e);
+          cleanup();
+        }
+      };
+      // If the document is already ready, print immediately; else wait a tick
+      if (iw.document.readyState === "complete") {
+        onLoad();
+      } else {
+        iw.addEventListener("load", onLoad, { once: true } as any);
+      }
+    } catch (e) {
+      console.error("direct print failed", e);
+    }
+  }
+
   function onAddSkus() {
     if (!canAddSkus) return;
     const params = new URLSearchParams(location.search); // keep ?host=&shop=&embedded
@@ -260,20 +335,7 @@ export default function Labels() {
 
   
   // app/routes/app.labels.tsx
-  function buildPrintRelayHrefAbs() {
-    if (!selectedResources.length) return undefined;
-
-    const params = new URLSearchParams(location.search);
-    params.set("ids", selectedResources.join(","));
-    if (!params.get("embedded")) params.set("embedded", "1");
-    if (!params.get("host")) {
-      const savedHost = window.sessionStorage.getItem("shopify_host");
-      if (savedHost) params.set("host", savedHost);
-    }
-
-    const origin = (window as any).__APP_ORIGIN__ || window.location.origin; // ← prefer server-provided origin
-    return new URL(`/app/labels/print-remote?${params.toString()}`, origin).toString();
-  }
+  // (In-app print preview now fetches HTML and uses iframe srcDoc; no direct URL builder needed.)
 
 
   return (
@@ -313,8 +375,8 @@ export default function Labels() {
                />
              </div>
 
-             {/* Print stays the same */}
-             <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
+             {/* Print directly (no preview) */}
+             <Button onClick={onPrintDirect} variant="primary" disabled={!hasSelection}>
                Print {hasSelection ? `(${selectedResources.length})` : ""}
              </Button>
            </div>
@@ -398,12 +460,38 @@ export default function Labels() {
                />
              </div>
 
-             <Button url={buildPrintRelayHrefAbs()} external variant="primary" disabled={!hasSelection}>
+             <Button onClick={onPrintDirect} variant="primary" disabled={!hasSelection}>
                Print {hasSelection ? `(${selectedResources.length})` : ""}
              </Button>
            </div>
         </div>
       </Card>
+
+      {/* Print Preview Modal */}
+      {/* <Modal
+        open={showPrint}
+        onClose={() => setShowPrint(false)}
+        title="Print preview"
+        primaryAction={{ content: "Print", onAction: doPrint, disabled: !hasSelection }}
+        secondaryActions={[{ content: "Close", onAction: () => setShowPrint(false) }]}>
+        <div style={{ height: "72vh", border: "1px solid #E1E3E5", borderRadius: 6, overflow: "hidden" }}>
+            {!hasSelection ? (
+              <div style={{ padding: 16 }}>No items selected.</div>
+            ) : printLoading ? (
+              <div style={{ padding: 16 }}>Loading preview…</div>
+            ) : printError ? (
+              <div style={{ padding: 16, color: "#b42318" }}>Failed to load preview: {printError}</div>
+            ) : (
+              <iframe
+                ref={iframeRef}
+                // Use srcDoc to avoid session redirects inside an iframe
+                srcDoc={printHtml ?? ""}
+                title="Labels preview"
+                style={{ width: "100%", height: "100%", border: "none" }}
+              />
+            )}
+          </div>
+         </Modal> */}
     </Page>
   );
 }

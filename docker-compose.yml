@@ -1,9 +1,7 @@
-version: "3.9"
-
 services:
   app:
     build: .
-    image: skus-and-labels:latest
+    image: ghcr.io/dericm/mozet-supplies:latest
     environment:
       NODE_ENV: production
       # Set this to your public HTTPS origin

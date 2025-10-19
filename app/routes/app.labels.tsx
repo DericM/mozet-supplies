@@ -299,9 +299,13 @@ export default function Labels() {
     );
   }
 
-  // After it runs, refresh data so new SKUs show up
+  // After action completes, refresh data ONCE so new SKUs show up
+  const prevAddState = useRef(addFetcher.state);
   useEffect(() => {
-    if (addFetcher.state === "idle" && addFetcher.data) {
+    const was = prevAddState.current;
+    prevAddState.current = addFetcher.state;
+    const justFinished = was !== "idle" && addFetcher.state === "idle";
+    if (justFinished && addFetcher.data) {
       revalidator.revalidate();
     }
   }, [addFetcher.state, addFetcher.data, revalidator]);

@@ -18,7 +18,10 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force && npm remove @shopify/cli || true
+# Use the exact node_modules from the builder to avoid runtime resolution issues,
+# then prune devDependencies for a lean image.
+COPY --from=builder /app/node_modules ./node_modules
+RUN npm prune --omit=dev && npm cache clean --force && npm remove @shopify/cli || true
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public

@@ -215,6 +215,8 @@ export default function Labels() {
       // Build a relative URL to the printable route with selected ids
       const params = new URLSearchParams(location.search);
       params.set("ids", selectedResources.join(","));
+      // Default to S-7698 (1x3in, 2x9 = 18-up) layout
+      params.set("format", "s7698");
       if (!params.get("embedded")) params.set("embedded", "1");
       const path = `/app/labels/print?${params.toString()}`;
 

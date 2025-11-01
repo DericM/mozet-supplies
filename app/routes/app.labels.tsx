@@ -49,7 +49,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // Build variant search (sku/title/product_title) + optional product_ids from vendor/type
   // Tokenize the query so multi-word searches work as AND across tokens
-  const tokens = q ? q.split(/\s+/).filter(Boolean).map((t) => t.replace(/"/g, '\\"')) : [];
+  // Escape Lucene-like special characters Shopify uses in admin search (e.g., &, |, :, !, (), etc.)
+  function escapeSearchToken(s: string): string {
+    return s
+      .replace(/\\/g, "\\\\")
+      .replace(/([+\-!(){}[\]^"~*?:/|&])/g, "\\$1");
+  }
+  const tokens = q ? q.split(/\s+/).filter(Boolean).map(escapeSearchToken) : [];
   const fieldForToken = (t: string) => `sku:*${t}* OR title:*${t}* OR product_title:*${t}*`;
 
   let productIdsClause: string | null = null;

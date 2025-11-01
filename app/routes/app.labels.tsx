@@ -48,31 +48,39 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const pageSize = 50; // change to 250 if you like
 
   // Build variant search (sku/title/product_title) + optional product_ids from vendor/type
-  const esc = q.replace(/"/g, '\\"');
-  const parts: string[] = [];
-  if (q) {
-    parts.push(`sku:*${esc}*`);
-    parts.push(`title:*${esc}*`);
-    parts.push(`product_title:*${esc}*`);
+  // Tokenize the query so multi-word searches work as AND across tokens
+  const tokens = q ? q.split(/\s+/).filter(Boolean).map((t) => t.replace(/"/g, '\\"')) : [];
+  const fieldForToken = (t: string) => `sku:*${t}* OR title:*${t}* OR product_title:*${t}*`;
+
+  let productIdsClause: string | null = null;
+  if (tokens.length) {
+    // Look up product ids that match vendor/type for ALL tokens
+    const vendorTypeClauses = tokens.map((t) => `(vendor:*${t}* OR product_type:*${t}*)`);
+    const pQuery = vendorTypeClauses.join(" AND ");
+    try {
+      const pResp = await admin.graphql(
+        `#graphql
+        query ProductsForIds($first:Int!,$query:String){
+          products(first:$first, query:$query){
+            edges{ node{ id } }
+          }
+        }`,
+        { variables: { first: 250, query: pQuery } }
+      );
+      const pJson = await pResp.json();
+      const ids: string[] = (pJson?.data?.products?.edges ?? []).map((e: any) => toNumericId(e.node.id));
+      if (ids.length) productIdsClause = `product_ids:${ids.join(",")}`;
+    } catch (e) {
+      // ignore lookup failures and continue without product_ids clause
+    }
   }
-  if (q) {
-    const pSearch = [`vendor:*${esc}*`, `product_type:*${esc}*`].join(" OR ");
-    const pResp = await admin.graphql(
-      `#graphql
-      query ProductsForIds($first:Int!,$query:String){
-        products(first:$first, query:$query){
-          edges{ node{ id } }
-        }
-      }`,
-      { variables: { first: 250, query: pSearch } }
-    );
-    const pJson = await pResp.json();
-    const ids: string[] = (pJson?.data?.products?.edges ?? []).map(
-      (e: any) => toNumericId(e.node.id)
-    );
-    if (ids.length) parts.push(`product_ids:${ids.join(",")}`);
-  }
-  const query = parts.length ? parts.join(" OR ") : null;
+
+  // Build final variant query requiring all tokens to match in any of the main fields
+  const tokenClauses = tokens.map((t) => `(${fieldForToken(t)})`);
+  const clauses: string[] = [];
+  if (tokenClauses.length) clauses.push(tokenClauses.join(" AND "));
+  if (productIdsClause) clauses.push(productIdsClause);
+  const query = clauses.length ? clauses.join(" AND ") : null;
 
   // Use first/after for forward, last/before for backward
   const variables: any = { query };
@@ -179,7 +187,7 @@ export default function Labels() {
           navigate({ pathname: location.pathname, search: nextSearch }, { replace: true, preventScrollReset: true });
         });
       }
-    }, 250);
+    }, 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);

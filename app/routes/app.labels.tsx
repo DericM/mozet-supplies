@@ -55,7 +55,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .replace(/\\/g, "\\\\")
       .replace(/([+\-!(){}[\]^"~*?:/|&])/g, "\\$1");
   }
-  const tokens = q ? q.split(/\s+/).filter(Boolean).map(escapeSearchToken) : [];
+  const rawTokens = q ? q.split(/\s+/).filter(Boolean) : [];
+  const connectorSet = new Set(["&", "&&", "|", "||", "and", "or", "AND", "OR"]);
+  const filteredTokens = rawTokens.filter((t) => {
+    if (connectorSet.has(t)) return false;                // drop boolean connectors
+    if (!/\w/.test(t)) return false;                     // drop tokens with no word chars (pure punctuation like &)
+    return true;
+  });
+  const tokens = filteredTokens.map(escapeSearchToken);
   const fieldForToken = (t: string) => `sku:*${t}* OR title:*${t}* OR product_title:*${t}*`;
 
   let productIdsClause: string | null = null;

@@ -182,6 +182,8 @@ export default function Labels() {
   const [overwrite, setOverwrite] = useState(false);
   const canAddSkus = (overwrite ? selectedProductIds.length > 0 : productIdsNeedingSkus.length > 0) && addFetcher.state === "idle";
   const selectedCount = selectedResources.length;
+  const missingRowsCount = selectedRows.filter((r) => !r.sku || r.sku.trim() === "").length;
+  const displayCount = overwrite ? selectedCount : missingRowsCount;
 
   // Direct print: fetch printable HTML with a session token, inject into a hidden iframe, and call print()
   async function onPrintDirect() {
@@ -375,8 +377,8 @@ export default function Labels() {
                tone="success"
              >
                {addFetcher.state !== "idle"
-                 ? (overwrite ? `Overwriting ${selectedCount}…` : `Adding ${selectedCount} SKUs…`)
-                 : (overwrite ? `Overwrite ${selectedCount} SKUs` : `Add ${selectedCount} SKUs`)}
+                 ? (overwrite ? `Overwriting ${displayCount}…` : `Adding ${displayCount} SKUs…`)
+                 : (overwrite ? `Overwrite ${displayCount} SKUs` : `Add ${displayCount} SKUs`)}
              </Button>
 
              {/* Overwrite toggle (moved to the right of the button) */}
@@ -462,8 +464,8 @@ export default function Labels() {
                tone="success"
              >
                {addFetcher.state !== "idle"
-                 ? (overwrite ? `Overwriting ${selectedCount}…` : `Adding ${selectedCount} SKUs…`)
-                 : (overwrite ? `Overwrite ${selectedCount} SKUs` : `Add ${selectedCount} SKUs`)}
+                 ? (overwrite ? `Overwriting ${displayCount}…` : `Adding ${displayCount} SKUs…`)
+                 : (overwrite ? `Overwrite ${displayCount} SKUs` : `Add ${displayCount} SKUs`)}
              </Button>
 
              {/* Overwrite toggle (to the right of the button) */}

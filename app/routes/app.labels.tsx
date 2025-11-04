@@ -225,9 +225,37 @@ export default function Labels() {
       iframe.style.border = "0";
       document.body.appendChild(iframe);
 
-      const cleanup = () => {
+      let removed = false;
+      // Helper at this scope to satisfy linter (no inner function declarations)
+      const waitForImages = async (win: Window, timeoutMs = 3000) => {
         try {
-          document.body.removeChild(iframe);
+          const doc = win.document as Document;
+          const imgs = Array.from(doc.images) as HTMLImageElement[];
+          const pending = imgs.filter((img) => !(img.complete && img.naturalWidth > 0));
+          if (pending.length === 0) return;
+          const loadPromises = pending.map(
+            (img) =>
+              new Promise<void>((resolve) => {
+                const done = () => resolve();
+                img.addEventListener("load", done, { once: true });
+                img.addEventListener("error", done, { once: true });
+              })
+          );
+          await Promise.race([
+            Promise.all(loadPromises),
+            new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+          ]);
+        } catch {
+          // ignore
+        }
+      };
+      const cleanup = () => {
+        if (removed) return;
+        removed = true;
+        try {
+          if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
         } catch (e) {
           console.warn("cleanup failed", e);
         }
@@ -240,14 +268,16 @@ export default function Labels() {
       iw.document.close();
 
       // Attempt to print when the iframe has loaded content
-      const onLoad = () => {
+      const onLoad = async () => {
         try {
+          // Wait a moment for images (QRs) to load in Chrome to avoid blank prints
+          await waitForImages(iw, 4000);
           iw.focus();
           // Afterprint cleanup
           iw.addEventListener("afterprint", cleanup, { once: true } as any);
           iw.print();
           // Fallback cleanup in case afterprint doesn’t fire
-          setTimeout(cleanup, 4000);
+          setTimeout(cleanup, 5000);
         } catch (e) {
           console.error("print error", e);
           cleanup();

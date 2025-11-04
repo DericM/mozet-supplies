@@ -5,7 +5,6 @@ import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { LAYOUT_18UP_LETTER_DEFAULT, LAYOUT_S7698_1x3_18UP, cssInches, type PageLayout } from "../lib/print/layouts";
-import QRCode from "qrcode";
 
 const QR_BASE = "https://quickchart.io/qr";
 
@@ -168,22 +167,12 @@ function mapVariants(variants: any[], store: string, currencyCode: string): Pres
 }
 
 async function attachQrDataUrls(items: PresentVariant[], qrPixels = 240): Promise<PresentVariant[]> {
-  // Generate crisp QR PNG data URLs for each adminUrl
-  const out: PresentVariant[] = [];
-  for (const it of items) {
-    try {
-      const dataUrl = await QRCode.toDataURL(it.adminUrl, {
-        errorCorrectionLevel: "M",
-        margin: 0,
-        width: qrPixels,
-        scale: 8,
-      });
-      out.push({ ...it, qrDataUrl: dataUrl });
-    } catch {
-      out.push({ ...it });
-    }
-  }
-  return out;
+  // Use external QR service to avoid CSP data: URI issues in some browsers
+  const size = Math.max(100, Math.min(600, qrPixels));
+  return items.map((it) => {
+    const url = `${QR_BASE}?text=${encodeURIComponent(it.adminUrl)}&size=${size}&margin=0`;
+    return { ...it, qrDataUrl: url };
+  });
 }
 
 function renderHtml18Up(

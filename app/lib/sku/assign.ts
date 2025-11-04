@@ -7,6 +7,7 @@ const PRODUCT_FOR_SKU_Q = `#graphql
   query ($id: ID!) {
     product(id: $id) {
       id
+      status
       vendor
       productType
       options { name position values }
@@ -77,6 +78,12 @@ export async function ensureSkusForProduct(
   const pJson = (await pRes.json()) as { data?: { product: ProductForSku | null } };
   const product = pJson.data?.product;
   if (!product) return;
+
+  // Skip non-active products (draft/archived)
+  if ((product.status ?? "").toUpperCase() !== "ACTIVE") {
+    console.log("[assign] skip: product not ACTIVE", { id: product.id, status: product.status });
+    return;
+  }
 
   // Require both vendor and productType to be present (non-blank)
   const vendor = (product.vendor ?? "").trim();

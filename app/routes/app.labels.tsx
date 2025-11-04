@@ -18,6 +18,7 @@ import {
 
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
+import { buildVariantQueryString } from "../lib/search";
 
 const PLACEHOLDER_IMG =
   "https://cdn.shopify.com/s/images/admin/no-image-compact-illustration.svg";
@@ -33,10 +34,7 @@ type VariantRow = {
   productImage: string | null;
 };
 
-function toNumericId(gid: string): string {
-  const parts = gid.split("/");
-  return parts[parts.length - 1] || gid;
-}
+// toNumericId moved into app/lib/search
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin } = await authenticate.admin(request);
@@ -47,53 +45,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const before = url.searchParams.get("before");
   const pageSize = 50; // change to 250 if you like
 
-  // Build variant search (sku/title/product_title) + optional product_ids from vendor/type
-  // Tokenize the query so multi-word searches work as AND across tokens
-  // Escape Lucene-like special characters Shopify uses in admin search (e.g., &, |, :, !, (), etc.)
-  function escapeSearchToken(s: string): string {
-    return s
-      .replace(/\\/g, "\\\\")
-      .replace(/([+\-!(){}[\]^"~*?:/|&])/g, "\\$1");
-  }
-  const rawTokens = q ? q.split(/\s+/).filter(Boolean) : [];
-  const connectorSet = new Set(["&", "&&", "|", "||", "and", "or", "AND", "OR"]);
-  const filteredTokens = rawTokens.filter((t) => {
-    if (connectorSet.has(t)) return false;                // drop boolean connectors
-    if (!/\w/.test(t)) return false;                     // drop tokens with no word chars (pure punctuation like &)
-    return true;
-  });
-  const tokens = filteredTokens.map(escapeSearchToken);
-  const fieldForToken = (t: string) => `sku:*${t}* OR title:*${t}* OR product_title:*${t}*`;
-
-  let productIdsClause: string | null = null;
-  if (tokens.length) {
-    // Look up product ids that match vendor/type for ALL tokens
-    const vendorTypeClauses = tokens.map((t) => `(vendor:*${t}* OR product_type:*${t}*)`);
-    const pQuery = vendorTypeClauses.join(" AND ");
-    try {
-      const pResp = await admin.graphql(
-        `#graphql
-        query ProductsForIds($first:Int!,$query:String){
-          products(first:$first, query:$query){
-            edges{ node{ id } }
-          }
-        }`,
-        { variables: { first: 250, query: pQuery } }
-      );
-      const pJson = await pResp.json();
-      const ids: string[] = (pJson?.data?.products?.edges ?? []).map((e: any) => toNumericId(e.node.id));
-      if (ids.length) productIdsClause = `product_ids:${ids.join(",")}`;
-    } catch (e) {
-      // ignore lookup failures and continue without product_ids clause
-    }
-  }
-
-  // Build final variant query requiring all tokens to match in any of the main fields
-  const tokenClauses = tokens.map((t) => `(${fieldForToken(t)})`);
-  const clauses: string[] = [];
-  if (tokenClauses.length) clauses.push(tokenClauses.join(" AND "));
-  if (productIdsClause) clauses.push(productIdsClause);
-  const query = clauses.length ? clauses.join(" AND ") : null;
+  // Build final variant query string (multi-word AND with vendor/type narrowing)
+  const query = await buildVariantQueryString(admin, q);
 
   // Use first/after for forward, last/before for backward
   const variables: any = { query };
@@ -120,6 +73,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
               title
               productType
               vendor
+              status
               featuredImage{ url }
             }
           }
@@ -200,7 +154,7 @@ export default function Labels() {
           navigate({ pathname: location.pathname, search: nextSearch }, { replace: true, preventScrollReset: true });
         });
       }
-    }, 500);
+    }, 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);

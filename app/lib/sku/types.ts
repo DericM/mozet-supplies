@@ -10,6 +10,7 @@ export type VariantForSku = {
 
 export type ProductForSku = {
   id: string;
+  status?: string | null;
   vendor?: string | null;
   productType?: string | null;
   options?: Array<{ name: string; position: number; values: string[] }>;

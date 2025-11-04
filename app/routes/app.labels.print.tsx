@@ -398,7 +398,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           sku
           title
           price                                 # ← scalar Money
-          product { id title vendor productType }
+          product { id title vendor productType status }
         }
       }
     }`,
@@ -406,7 +406,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   );
   const json = await resp.json();
   const currencyCode = json?.data?.shop?.currencyCode || "USD";
-  const variants = (json?.data?.nodes || []).filter(Boolean);
+  const variants = (json?.data?.nodes || [])
+    .filter(Boolean)
+    .filter((v: any) => (v.product?.status ?? "").toUpperCase() === "ACTIVE");
   let html: string;
   if (format === "18up") {
     // Prepare presentational items + QR data URLs

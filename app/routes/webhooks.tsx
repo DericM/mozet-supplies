@@ -27,6 +27,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (topic === "PRODUCTS_CREATE" || topic === "PRODUCTS_UPDATE") {
+    const autoSkuEnv = String(process.env.AUTO_SKU || process.env.ENABLE_AUTO_SKU || "").toLowerCase();
+    const autoSkuEnabled = autoSkuEnv === "1" || autoSkuEnv === "true" || autoSkuEnv === "yes";
+    if (!autoSkuEnabled) {
+      console.log("[webhook] auto SKU generation disabled; skipping");
+      return new Response("ok");
+    }
     const productGid = getProductGidFromPayload(payload);
     console.log("[webhook] productGid:", productGid);
     if (productGid) {

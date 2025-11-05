@@ -1,6 +1,6 @@
 // app/lib/sku/assign.ts
 import type { AdminClient, ProductForSku, VariantForSku } from "./types";
-import { groupKey, formatSku } from "./rules";
+import { groupKey, buildSku } from "./rules";
 import { reserveNextForGroup } from "./sequence";
 
 const PRODUCT_FOR_SKU_Q = `#graphql
@@ -96,13 +96,16 @@ export async function ensureSkusForProduct(
   // 2) Compute group from product fields
   const group = groupKey(product.productType ?? undefined, product.vendor ?? undefined);
 
-  // 3) Prepare patches
+  // 3) Reserve one sequence number for the whole product (shared across variants)
+  const seq = await reserveNextForGroup(admin, group);
+
+  // 4) Prepare patches
   const toUpdate: VariantSetInput[] = [];
   for (const v of product.variants.nodes as VariantForSku[]) {
     const hasSku = !!(v.sku && v.sku.trim() !== "");
     if (overwrite || !hasSku) {
-      const seq = await reserveNextForGroup(admin, group);
-      const desired = formatSku(group, seq);
+      const optionVals = (v.selectedOptions ?? []).map((o) => String(o.value || ""));
+      const desired = buildSku(product.productType ?? undefined, product.vendor ?? undefined, seq, optionVals);
       toUpdate.push({
         id: v.id,
         sku: desired,
@@ -115,12 +118,12 @@ export async function ensureSkusForProduct(
     return;
   }
 
-  // 4) productSet requires productOptions whenever variants are present
+  // 5) productSet requires productOptions whenever variants are present
   const optionsInput = buildOptionsInput(
     (product as unknown as { options?: Array<{ name: string; position: number; values: string[] }> }).options
   );
 
-  // 5) Apply in one call
+  // 6) Apply in one call
   const mRes = await admin.graphql(PRODUCT_SET_MUT, {
     variables: {
       identifier: { id: productGid },

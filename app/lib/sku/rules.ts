@@ -6,36 +6,7 @@
 // 3) If still short, allow vowels for clarity.
 // 4) De-dupe immediate repeats, pad with X to length 3.
 // Cleanup removes non-alphanumerics and uppercases.
-function abbreviate3(input?: string): string {
-  const cleaned = (input || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!cleaned) return "UNK";
-
-  const isVowel = (ch: string) => /^[AEIOU]$/.test(ch);
-  const chars = cleaned.split("");
-
-  const out: string[] = [];
-  // Always take first character
-  out.push(chars[0]);
-
-  // Pass 1: prefer consonants and digits (skip vowels)
-  for (let i = 1; i < chars.length && out.length < 3; i++) {
-    const ch = chars[i];
-    const prev = out[out.length - 1];
-    if (ch === prev) continue; // skip immediate repeats
-    if (!isVowel(ch) || /\d/.test(ch)) out.push(ch);
-  }
-
-  // Pass 2: if still short, allow vowels for clarity
-  for (let i = 1; i < chars.length && out.length < 3; i++) {
-    const ch = chars[i];
-    const prev = out[out.length - 1];
-    if (ch === prev) continue;
-    if (isVowel(ch)) out.push(ch);
-  }
-
-  while (out.length < 3) out.push("X");
-  return out.join("");
-}
+// (kept older 3-letter algorithm removed in favor of N-based)
 
 // New helper: build candidates with priorities and eliminate from right-to-left
 // Priority rules:
@@ -43,7 +14,7 @@ function abbreviate3(input?: string): string {
 //  - Priority 2: Consonants and digits (non-leading characters)
 //  - Priority 3: Vowels (non-leading characters)
 // We eliminate from right to left by priority (3, then 2, then 1) until 3 remain.
-function initialsPriorityAbbrev3(inputRaw?: string): string {
+function initialsPriorityAbbrevN(inputRaw: string | undefined, N: number): string {
   const input = inputRaw || "";
   const tokens = input.match(/[A-Za-z0-9]+/g) || [];
 
@@ -75,41 +46,72 @@ function initialsPriorityAbbrev3(inputRaw?: string): string {
   }
 
   // If nothing usable, fall back
-  if (candidates.length === 0) return abbreviate3(inputRaw);
+  if (candidates.length === 0) {
+    // Fallbacks
+    const cleaned = (inputRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!cleaned) return "X".repeat(N);
+    return (cleaned + "X".repeat(N)).slice(0, N);
+  }
 
   // Eliminate from right to left by priority until only 3 remain
   const removeByPriority = (p: 1 | 2 | 3) => {
-    for (let i = candidates.length - 1; i >= 0 && candidates.length > 3; i--) {
+    for (let i = candidates.length - 1; i >= 0 && candidates.length > N; i--) {
       if (candidates[i]!.pr === p) candidates.splice(i, 1);
     }
   };
 
-  if (candidates.length > 3) removeByPriority(3);
-  if (candidates.length > 3) removeByPriority(2);
-  if (candidates.length > 3) removeByPriority(1);
+  if (candidates.length > N) removeByPriority(3);
+  if (candidates.length > N) removeByPriority(2);
+  if (candidates.length > N) removeByPriority(1);
 
-  // If still longer than 3 (all same priority), keep the left-most 3
-  while (candidates.length > 3) candidates.pop();
+  // If still longer than N (all same priority), keep the left-most N
+  while (candidates.length > N) candidates.pop();
 
-  // If shorter than 3, pad with X
-  while (candidates.length < 3) candidates.push({ ch: "X", pr: 2 });
+  // If shorter than N, pad with X
+  while (candidates.length < N) candidates.push({ ch: "X", pr: 2 });
 
   return candidates.map((c) => c.ch).join("");
 }
 
 // Type → TTT
 export function typeToTTT(typeRaw?: string): string {
-  return initialsPriorityAbbrev3(typeRaw);
+  return initialsPriorityAbbrevN(typeRaw, 3);
 }
 
 // Vendor → VVV (now also prioritizes initials for multi‑word vendors)
 export function vendorToVVV(vendorRaw?: string): string {
-  return initialsPriorityAbbrev3(vendorRaw);
+  return initialsPriorityAbbrevN(vendorRaw, 3);
 }
 
-// Group key and SKU formatting
+// 2-char helpers
+export function typeToTT(typeRaw?: string): string {
+  return initialsPriorityAbbrevN(typeRaw, 2);
+}
+export function vendorToTT(vendorRaw?: string): string {
+  return initialsPriorityAbbrevN(vendorRaw, 2);
+}
+export function optionToTT(valueRaw?: string): string {
+  return initialsPriorityAbbrevN(valueRaw, 2);
+}
+
+// Group key: still coarse to share sequence across variants of same type/vendor
 export const groupKey = (typeRaw?: string, vendorRaw?: string) =>
   `${typeToTTT(typeRaw)}-${vendorToVVV(vendorRaw)}`;
 
-export const formatSku = (group: string, n: number) =>
-  `${group}-${n.toString(16).toUpperCase().padStart(4, "0")}`;
+// New SKU format: TT VV SSS [OO]... (concatenated, no hyphens)
+// - TT: 2-letter type
+// - VV: 2-letter vendor
+// - SSS: 3-digit decimal sequence, zero-padded
+// - OO..: 2-letter per option value (order as provided)
+export function buildSku(
+  typeRaw: string | undefined,
+  vendorRaw: string | undefined,
+  seq: number,
+  optionValues: string[]
+): string {
+  const TT = typeToTT(typeRaw);
+  const VV = vendorToTT(vendorRaw);
+  const SSS = String(Math.max(0, Math.floor(seq))).padStart(3, "0");
+  const OO = optionValues.map((v) => optionToTT(v)).join("");
+  return `${TT}${VV}${SSS}${OO}`;
+}

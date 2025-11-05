@@ -37,6 +37,7 @@ function formatMoneyScalar(price: any, code: string): string {
 }
 
 function renderHtmlSingleLabelPerPage(variants: any[], store: string, currencyCode: string) {
+  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const rows = variants
     .map((v: any) => {
       const p = v.product || {};
@@ -62,6 +63,7 @@ function renderHtmlSingleLabelPerPage(variants: any[], store: string, currencyCo
           </div>
           <div class="bottom meta">
             <span class="vendor">${escapeHtml(vendor)}</span>
+            <span class="date">${escapeHtml(dateStr)}</span>
             <span class="price">${escapeHtml(priceStr)}</span>
           </div>
         </div>
@@ -125,6 +127,7 @@ function renderHtmlSingleLabelPerPage(variants: any[], store: string, currencyCo
         font-size: 8pt; line-height: 1.05;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%;
       }
+      .date { font-size: 8pt; line-height: 1.05; white-space: nowrap; text-align: center; padding: 0 4px; }
       .price {
         font-size: 9pt; line-height: 1.05; font-weight: bold; white-space: nowrap;
       }
@@ -149,9 +152,11 @@ type PresentVariant = {
   priceStr: string;
   adminUrl: string;
   qrDataUrl?: string; // used for 18-up
+  dateStr: string;
 };
 
 function mapVariants(variants: any[], store: string, currencyCode: string): PresentVariant[] {
+  const dateStr = new Date().toISOString().slice(0, 10);
   return variants.map((v: any) => {
     const p = v.product || {};
     const productIdNum = toNumericId(p.id || "");
@@ -162,7 +167,7 @@ function mapVariants(variants: any[], store: string, currencyCode: string): Pres
     const vendor = p.vendor || "—";
     const priceStr = formatMoneyScalar(v.price, currencyCode);
     const adminUrl = `https://admin.shopify.com/store/${store}/products/${productIdNum}`;
-    return { title, sku, vendor, priceStr, adminUrl };
+    return { title, sku, vendor, priceStr, adminUrl, dateStr };
   });
 }
 
@@ -238,6 +243,7 @@ function renderHtml18Up(
                 <div class="middle"><p class="title">${escapeHtml(item.title)}</p></div>
                 <div class="bottom meta">
                   <span class="vendor">${escapeHtml(item.vendor)}</span>
+                  <span class="date">${escapeHtml(item.dateStr)}</span>
                   <span class="price">${escapeHtml(item.priceStr)}</span>
                 </div>
               </div>
@@ -330,7 +336,8 @@ function renderHtml18Up(
       .bottom.meta { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
       .sku { font-size: 17pt; font-weight: bold; margin: 0; line-height: 0.9; letter-spacing: 0.2pt; }
       .title { font-size: 9pt; margin: 0; line-height: 1.0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: left; }
-      .vendor { font-size: 7pt; line-height: 1.0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+      .vendor { font-size: 7pt; line-height: 1.0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+      .date { font-size: 7pt; line-height: 1.0; white-space: nowrap; text-align: center; padding: 0 3px; }
       .price { font-size: 8pt; line-height: 1.0; font-weight: bold; white-space: nowrap; }
       .right { width: 28%; display: flex; align-items: center; justify-content: center; text-align: center; }
       img { display: block; }

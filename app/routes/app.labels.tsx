@@ -13,7 +13,6 @@ import {
   TextField,
   Text,
   Thumbnail,
-  Checkbox,
 } from "@shopify/polaris";
 
 import type { LoaderFunctionArgs } from "react-router";
@@ -198,6 +197,15 @@ export default function Labels() {
   const selectedProductIds = Array.from(new Set(selectedRows.map((r) => r.productId)));
 
   const [overwrite, setOverwrite] = useState(false);
+  // Read overwrite preference from Settings (localStorage); default false
+  useEffect(() => {
+    try {
+      const v = typeof window !== "undefined" ? window.localStorage.getItem("sku_overwrite") : null;
+      setOverwrite(v === "1");
+    } catch {
+      // ignore
+    }
+  }, []);
   const canAddSkus = (overwrite ? selectedProductIds.length > 0 : productIdsNeedingSkus.length > 0) && addFetcher.state === "idle";
   const selectedCount = selectedResources.length;
   const missingRowsCount = selectedRows.filter((r) => !r.sku || r.sku.trim() === "").length;
@@ -413,16 +421,6 @@ export default function Labels() {
                  : (overwrite ? `Overwrite ${displayCount} SKUs` : `Add ${displayCount} SKUs`)}
              </Button>
 
-             {/* Overwrite toggle (moved to the right of the button) */}
-             <div style={{ display: "flex", alignItems: "center", paddingInline: 8, marginRight: 12 }}>
-               <Checkbox
-                 label="Overwrite"
-                 checked={overwrite}
-                 onChange={setOverwrite}
-               />
-             </div>
-
-             {/* Print directly (no preview) */}
              <Button onClick={onPrintDirect} variant="primary" disabled={!hasSelection}>
                Print {hasSelection ? `(${selectedResources.length})` : ""}
              </Button>
@@ -499,15 +497,6 @@ export default function Labels() {
                  ? (overwrite ? `Overwriting ${displayCount}…` : `Adding ${displayCount} SKUs…`)
                  : (overwrite ? `Overwrite ${displayCount} SKUs` : `Add ${displayCount} SKUs`)}
              </Button>
-
-             {/* Overwrite toggle (to the right of the button) */}
-             <div style={{ display: "flex", alignItems: "center", paddingInline: 8, marginRight: 12 }}>
-               <Checkbox
-                 label="Overwrite"
-                 checked={overwrite}
-                 onChange={setOverwrite}
-               />
-             </div>
 
              <Button onClick={onPrintDirect} variant="primary" disabled={!hasSelection}>
                Print {hasSelection ? `(${selectedResources.length})` : ""}

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useNavigate } from "react-router";
+// import { useNavigate } from "react-router"; // no longer used
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useEffect, useState } from "react";
-import { Page, Card, ChoiceList, Text, Button, InlineStack, Checkbox } from "@shopify/polaris";
+import { Page, Card, ChoiceList, Text, Checkbox } from "@shopify/polaris";
 import { LAYOUTS, type LayoutKey } from "app/lib/print/layouts";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -14,7 +14,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function Settings() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [selected, setSelected] = useState<LayoutKey>("s7698");
 
   useEffect(() => {
@@ -61,6 +61,28 @@ export default function Settings() {
     try { window.localStorage.setItem("search_include_zero_inventory", v); } catch (_e) { /* ignore */ }
   }
 
+  // Draft / Archived product toggles (default exclude)
+  const [includeDraft, setIncludeDraft] = useState<boolean>(false);
+  const [includeArchived, setIncludeArchived] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      const d = window.localStorage.getItem("search_include_draft");
+      setIncludeDraft(d === "1");
+      const a = window.localStorage.getItem("search_include_archived");
+      setIncludeArchived(a === "1");
+    } catch {
+      // ignore
+    }
+  }, []);
+  function onToggleDraft(checked: boolean) {
+    setIncludeDraft(checked);
+    try { window.localStorage.setItem("search_include_draft", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
+  }
+  function onToggleArchived(checked: boolean) {
+    setIncludeArchived(checked);
+    try { window.localStorage.setItem("search_include_archived", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
+  }
+
   return (
     <Page title="Settings">
       <Card>
@@ -84,11 +106,28 @@ export default function Settings() {
             />
           </div>
 
-          <DraftArchivedSettings />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Checkbox
+                label="Include draft products"
+                checked={includeDraft}
+                onChange={onToggleDraft}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Checkbox
+                label="Include archived products"
+                checked={includeArchived}
+                onChange={onToggleArchived}
+              />
+            </div>
+          </div>
 
-          <InlineStack gap="200">
-            <Button onClick={() => navigate("/app/labels")}>Back to Labels</Button>
-          </InlineStack>
+          <div style={{ height: 8 }} />
+          <Text as="h2" variant="headingMd">SKUs</Text>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <OverwriteSkusSetting />
+          </div>
         </div>
       </Card>
     </Page>
@@ -97,48 +136,25 @@ export default function Settings() {
 
 export const headers: HeadersFunction = (args) => boundary.headers(args);
 
-// Inline component for draft/archived toggles
-function DraftArchivedSettings() {
-  const [includeDraft, setIncludeDraft] = useState<boolean>(false);
-  const [includeArchived, setIncludeArchived] = useState<boolean>(false);
-
+function OverwriteSkusSetting() {
+  const [overwriteSkus, setOverwriteSkus] = useState<boolean>(false);
   useEffect(() => {
     try {
-      const d = window.localStorage.getItem("search_include_draft");
-      setIncludeDraft(d === "1");
-      const a = window.localStorage.getItem("search_include_archived");
-      setIncludeArchived(a === "1");
+      const v = window.localStorage.getItem("sku_overwrite");
+      setOverwriteSkus(v === "1");
     } catch {
       // ignore
     }
   }, []);
-
-  function onToggleDraft(checked: boolean) {
-    setIncludeDraft(checked);
-    try { window.localStorage.setItem("search_include_draft", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
+  function onToggle(checked: boolean) {
+    setOverwriteSkus(checked);
+    try { window.localStorage.setItem("sku_overwrite", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
   }
-
-  function onToggleArchived(checked: boolean) {
-    setIncludeArchived(checked);
-    try { window.localStorage.setItem("search_include_archived", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
-  }
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Checkbox
-          label="Include draft products"
-          checked={includeDraft}
-          onChange={onToggleDraft}
-        />
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Checkbox
-          label="Include archived products"
-          checked={includeArchived}
-          onChange={onToggleArchived}
-        />
-      </div>
-    </div>
+    <Checkbox
+      label="Overwrite existing SKUs when adding"
+      checked={overwriteSkus}
+      onChange={onToggle}
+    />
   );
 }

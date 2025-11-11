@@ -57,7 +57,7 @@ export default function Readme() {
                     <li>Used lengths:
                       <ul style={{ margin: 0, paddingInlineStart: 20 }}>
                         <li>TT, VV, and each OO: 2 characters.</li>
-                        <li>Group key components TTT and VVV: 3 characters.</li>
+                        <li>Group key components TT and VV: 2 characters.</li>
                       </ul>
                     </li>
                   </ul>
@@ -65,7 +65,7 @@ export default function Readme() {
                 <li>
                   Group key
                   <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                    <li><code>group = TTT + &apos;-&apos; + VVV</code> computed from the 3-character type/vendor abbreviations.</li>
+                    <li><code>group = TT + &apos;-&apos; + VV</code> computed from the 2-character type/vendor abbreviations.</li>
                   </ul>
                 </li>
                 <li>
@@ -110,8 +110,8 @@ export default function Readme() {
             <div style={{ display: "grid", gap: 8 }}>
               <Text as="h3" variant="headingMd">Examples</Text>
               <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                <li>Type &quot;Air Conditioner Filter&quot;, Vendor &quot;Acme Tools&quot; → Group <code>ACF-ACM</code> (example) → SKU with seq 001 and options Color=Dark Blue, Size=Large → <code>AC001DBLG</code> (illustrative; actual TT/VV depend on abbreviation rules).</li>
-                <li>Type &quot;Water Bottle&quot;, Vendor &quot;Blue Ocean&quot; → Group <code>WBT-BOC</code> (example) → <code>WB001</code> for single-variant, or <code>WB001ST</code> if option &quot;Steel&quot; exists.</li>
+                <li>Type &quot;Air Conditioner Filter&quot;, Vendor &quot;Acme Tools&quot; → Group <code>AC-AT</code> (example) → SKU with seq 001 and options Color=Dark Blue, Size=Large → <code>AC001DBLG</code> (illustrative; actual TT/VV depend on abbreviation rules).</li>
+                <li>Type &quot;Water Bottle&quot;, Vendor &quot;Blue Ocean&quot; → Group <code>WB-BO</code> (example) → <code>WB001</code> for single-variant, or <code>WB001ST</code> if option &quot;Steel&quot; exists.</li>
                 <li>Overwrite enabled reassigns SKUs and reserves a new sequence (e.g., next becomes <code>...002</code>) even if earlier values existed.</li>
               </ul>
             </div>

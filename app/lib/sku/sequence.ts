@@ -6,7 +6,7 @@ import type { AdminClient } from "./types";
  * Stored in a shop-level metafield: namespace "skus", key "seq_<group>".
  */
 export async function reserveNextForGroup(admin: AdminClient, group: string): Promise<number> {
-  const namespace = "skus";
+  const namespace = "skus2";
   const key = `seq_${group.toLowerCase()}`;
 
   // 1) Read current value

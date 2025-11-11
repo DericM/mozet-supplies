@@ -73,21 +73,11 @@ function initialsPriorityAbbrevN(inputRaw: string | undefined, N: number): strin
   return candidates.map((c) => c.ch).join("");
 }
 
-// Type → TTT
-export function typeToTTT(typeRaw?: string): string {
-  return initialsPriorityAbbrevN(typeRaw, 3);
-}
-
-// Vendor → VVV (now also prioritizes initials for multi‑word vendors)
-export function vendorToVVV(vendorRaw?: string): string {
-  return initialsPriorityAbbrevN(vendorRaw, 3);
-}
-
 // 2-char helpers
 export function typeToTT(typeRaw?: string): string {
   return initialsPriorityAbbrevN(typeRaw, 2);
 }
-export function vendorToTT(vendorRaw?: string): string {
+export function vendorToVV(vendorRaw?: string): string {
   return initialsPriorityAbbrevN(vendorRaw, 2);
 }
 export function optionToTT(valueRaw?: string): string {
@@ -96,7 +86,7 @@ export function optionToTT(valueRaw?: string): string {
 
 // Group key: still coarse to share sequence across variants of same type/vendor
 export const groupKey = (typeRaw?: string, vendorRaw?: string) =>
-  `${typeToTTT(typeRaw)}-${vendorToVVV(vendorRaw)}`;
+  `${typeToTT(typeRaw)}-${vendorToVV(vendorRaw)}`;
 
 // New SKU format: TT VV SSS [OO]... (concatenated, no hyphens)
 // - TT: 2-letter type
@@ -110,7 +100,7 @@ export function buildSku(
   optionValues: string[]
 ): string {
   const TT = typeToTT(typeRaw);
-  const VV = vendorToTT(vendorRaw);
+  const VV = vendorToVV(vendorRaw);
   const SSS = String(Math.max(0, Math.floor(seq))).padStart(3, "0");
   const OO = optionValues.map((v) => optionToTT(v)).join("");
   return `${TT}${VV}${SSS}${OO}`;

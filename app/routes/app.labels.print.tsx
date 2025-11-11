@@ -10,7 +10,7 @@ import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import createEmotionServer from "@emotion/server/create-instance";
 import { LabelFields } from "../lib/print/components";
-import { LAYOUT_S7698_1x3_18UP } from "app/lib/print/layouts";
+import { getLayoutByKey } from "app/lib/print/layouts";
 import { PrintLabelGridDocument } from "app/lib/print/components/Document";
 
 
@@ -37,12 +37,13 @@ function formatMoneyScalar(price: any, code: string): string {
   }
 }
 
-function renderHtml18Up(items: LabelFields[]): string {
+function renderHtml(items: LabelFields[], layoutKey: string | null): string {
+  const { layout } = getLayoutByKey(layoutKey);
   const cache = createCache({ key: "css" });
   const { extractCriticalToChunks, constructStyleTagsFromChunks } = createEmotionServer(cache);
   const app = (
     <CacheProvider value={cache}>
-      <PrintLabelGridDocument items={items as unknown as LabelFields[]} layout={LAYOUT_S7698_1x3_18UP} />
+      <PrintLabelGridDocument items={items as unknown as LabelFields[]} layout={layout} />
     </CacheProvider>
   );
   const htmlStr = renderToString(app);
@@ -52,7 +53,12 @@ function renderHtml18Up(items: LabelFields[]): string {
 }
 
 function mapVariants(variants: any[], store: string, currencyCode: string): LabelFields[] {
-  const dateStr = new Date().toISOString().slice(0, 10);
+  const dateStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   return variants.map((v: any) => {
     const p = v.product || {};
     const productIdNum = toNumericId(p.id || "");
@@ -86,7 +92,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const shopParam = url.searchParams.get("shop"); // preserve from embedded params
   const store = storeFromShopParam(shopParam);
-  //const format = (url.searchParams.get("format") || "").toLowerCase();
+  const format = (url.searchParams.get("format") || "").toLowerCase();
 
   const resp = await admin.graphql(
     `#graphql
@@ -110,7 +116,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     .filter(Boolean)
     .filter((v: any) => (v.product?.status ?? "").toUpperCase() === "ACTIVE");
   const items = mapVariants(variants, store, currencyCode);
-  const html = renderHtml18Up(items);
+  const html = renderHtml(items, format);
 
   return new Response(html, {
     status: 200,

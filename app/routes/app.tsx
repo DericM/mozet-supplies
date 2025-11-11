@@ -29,6 +29,7 @@ export default function AppLayout() {
       <AppBridgeProvider embedded apiKey={apiKey}>
         <NavMenu>
           <a href="/app" rel="home">Labels</a>
+          <a href="/app/settings">Settings</a>
           <a href="/app/readme">Readme</a>
         </NavMenu>
         <Outlet />

@@ -192,8 +192,9 @@ export default function Labels() {
       // Build a relative URL to the printable route with selected ids
       const params = new URLSearchParams(location.search);
       params.set("ids", selectedResources.join(","));
-      // Default to S-7698 (1x3in, 2x9 = 18-up) layout
-      params.set("format", "s7698");
+      // Pick layout from localStorage (saved in Settings); default to S-7698
+      const savedLayout = (typeof window !== "undefined" ? window.localStorage.getItem("print_layout") : null) || "s7698";
+      params.set("format", savedLayout);
       if (!params.get("embedded")) params.set("embedded", "1");
       const path = `/app/labels/print?${params.toString()}`;
 

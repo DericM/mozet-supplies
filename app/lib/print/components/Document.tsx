@@ -45,6 +45,7 @@ export const PrintLabelGridDocument: React.FC<{
 							hGapIn={hGapIn}
 							vGapIn={vGapIn}
 							pagePadding={{ top: marginTopIn, right: marginRightIn, bottom: marginBottomIn, left: marginLeftIn }}
+							showCutLines={!!layout.cutLines}
 						/>
 					</PageWrapper>
 			</body>

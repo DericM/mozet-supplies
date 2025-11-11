@@ -46,7 +46,7 @@ const Left = styled.div`
   justify-content: space-between;
   height: 100% - 0.04in;
   text-align: left;
-  padding: 0.02in 0.00in 0.02in 0.02in;
+  padding: 0.02in 0.00in 0.02in 0.05in;
   position: relative;
   z-index: 1;
   overflow: visible;

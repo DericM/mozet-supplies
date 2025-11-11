@@ -13,6 +13,7 @@ type GridProps = {
   vGapIn: number;
   pagePadding: { top: number; right: number; bottom: number; left: number };
   debug?: boolean;
+  showCutLines?: boolean;
 };
 
 const StyledPage = styled.section<{
@@ -25,7 +26,7 @@ const StyledPage = styled.section<{
 `;
 
 const Grid = styled.div<{
-  columns: number; rows: number; labelWidthIn: number; labelHeightIn: number; hGapIn: number; vGapIn: number;
+  columns: number; rows: number; labelWidthIn: number; labelHeightIn: number; hGapIn: number; vGapIn: number; 
 }>`
   display: grid;
   grid-template-columns: repeat(${p => p.columns}, ${p => p.labelWidthIn}in);
@@ -34,58 +35,61 @@ const Grid = styled.div<{
   row-gap: ${p => p.vGapIn}in;
   width: 100%;
   height: 100%;
+  
 `;
-
-const Cell = styled.div<{ labelWidthIn: number; labelHeightIn: number; }>`
+const Cell = styled.div<{ labelWidthIn: number; labelHeightIn: number; showCutLines?: boolean; }>`
   box-sizing: border-box;
   width: ${p => p.labelWidthIn}in;
   height: ${p => p.labelHeightIn}in;
+  border: ${p => (p.showCutLines ? "1px dotted #000" : "none")};
 `;
 
 export const LabelGrid: React.FC<GridProps> = ({
-  items,
-  columns,
-  rows,
-  labelWidthIn,
-  labelHeightIn,
-  hGapIn,
-  vGapIn,
-  pagePadding,
-  debug,
-}) => {
-  const perPage = columns * rows;
-  const pages: LabelFields[][] = [];
-  for (let i = 0; i < items.length; i += perPage) pages.push(items.slice(i, i + perPage));
-  return (
-    <>
-      {pages.map((page, pi) => (
-        <StyledPage
-          padTop={pagePadding.top}
-          padRight={pagePadding.right}
-          padBottom={pagePadding.bottom}
-          padLeft={pagePadding.left}
-          debug={debug}
-          key={pi}
-        >
-          <Grid
-            columns={columns}
-            rows={rows}
-            labelWidthIn={labelWidthIn}
-            labelHeightIn={labelHeightIn}
-            hGapIn={hGapIn}
-            vGapIn={vGapIn}
+    items,
+    columns,
+    rows,
+    labelWidthIn,
+    labelHeightIn,
+    hGapIn,
+    vGapIn,
+    pagePadding,
+    debug,
+    showCutLines,
+  }) => {
+    const perPage = columns * rows;
+    const pages: LabelFields[][] = [];
+    for (let i = 0; i < items.length; i += perPage) pages.push(items.slice(i, i + perPage));
+    return (
+      <>
+        {pages.map((page, pi) => (
+          <StyledPage
+            padTop={pagePadding.top}
+            padRight={pagePadding.right}
+            padBottom={pagePadding.bottom}
+            padLeft={pagePadding.left}
+            debug={debug}
+            key={pi}
           >
-            {Array.from({ length: perPage }).map((_, idx) => {
-              const item = page[idx];
-              return (
-                <Cell labelWidthIn={labelWidthIn} labelHeightIn={labelHeightIn} key={idx}>
-                  {item ? <Label item={item} /> : null}
-                </Cell>
-              );
-            })}
-          </Grid>
-        </StyledPage>
-      ))}
-    </>
-  );
-};
+            <Grid
+              columns={columns}
+              rows={rows}
+              labelWidthIn={labelWidthIn}
+              labelHeightIn={labelHeightIn}
+              hGapIn={hGapIn}
+              vGapIn={vGapIn}
+              
+            >
+              {Array.from({ length: perPage }).map((_, idx) => {
+                const item = page[idx];
+                return (
+                  <Cell labelWidthIn={labelWidthIn} labelHeightIn={labelHeightIn} key={idx} showCutLines={showCutLines}>
+                    {item ? <Label item={item} /> : null}
+                  </Cell>
+                );
+              })}
+            </Grid>
+          </StyledPage>
+        ))}
+      </>
+    );
+  };

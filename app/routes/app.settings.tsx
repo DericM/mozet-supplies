@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useEffect, useState } from "react";
-import { Page, Card, ChoiceList, Text, Button, InlineStack } from "@shopify/polaris";
+import { Page, Card, ChoiceList, Text, Button, InlineStack, Checkbox } from "@shopify/polaris";
 import { LAYOUTS, type LayoutKey } from "app/lib/print/layouts";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -43,14 +43,29 @@ export default function Settings() {
     { label: LAYOUTS.handcut.name, value: "handcut" },
   ];
 
+  // Search results options: include/exclude zero-inventory variants
+  const [includeZeroInv, setIncludeZeroInv] = useState<string>("0"); // default exclude ("1" include, "0" exclude)
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("search_include_zero_inventory");
+      if (saved === "0" || saved === "1") setIncludeZeroInv(saved);
+      else setIncludeZeroInv("0");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function onToggleIncludeZero(checked: boolean) {
+    const v = checked ? "1" : "0";
+    setIncludeZeroInv(v);
+    try { window.localStorage.setItem("search_include_zero_inventory", v); } catch (_e) { /* ignore */ }
+  }
+
   return (
     <Page title="Settings">
       <Card>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Text as="h2" variant="headingMd">Default print layout</Text>
-          <Text as="p" variant="bodyMd" tone="subdued">
-            Choose which label sheet layout to use when printing.
-          </Text>
           <ChoiceList
             title="Layouts"
             titleHidden
@@ -58,6 +73,18 @@ export default function Settings() {
             onChange={onChange}
             choices={choices}
           />
+
+          <div style={{ height: 8 }} />
+          <Text as="h2" variant="headingMd">Search results</Text>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Checkbox
+              label="Include variants with 0 inventory"
+              checked={includeZeroInv === "1"}
+              onChange={onToggleIncludeZero}
+            />
+          </div>
+
+          <DraftArchivedSettings />
 
           <InlineStack gap="200">
             <Button onClick={() => navigate("/app/labels")}>Back to Labels</Button>
@@ -69,3 +96,49 @@ export default function Settings() {
 }
 
 export const headers: HeadersFunction = (args) => boundary.headers(args);
+
+// Inline component for draft/archived toggles
+function DraftArchivedSettings() {
+  const [includeDraft, setIncludeDraft] = useState<boolean>(false);
+  const [includeArchived, setIncludeArchived] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const d = window.localStorage.getItem("search_include_draft");
+      setIncludeDraft(d === "1");
+      const a = window.localStorage.getItem("search_include_archived");
+      setIncludeArchived(a === "1");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function onToggleDraft(checked: boolean) {
+    setIncludeDraft(checked);
+    try { window.localStorage.setItem("search_include_draft", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
+  }
+
+  function onToggleArchived(checked: boolean) {
+    setIncludeArchived(checked);
+    try { window.localStorage.setItem("search_include_archived", checked ? "1" : "0"); } catch (_e) { /* ignore */ }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Checkbox
+          label="Include draft products"
+          checked={includeDraft}
+          onChange={onToggleDraft}
+        />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Checkbox
+          label="Include archived products"
+          checked={includeArchived}
+          onChange={onToggleArchived}
+        />
+      </div>
+    </div>
+  );
+}

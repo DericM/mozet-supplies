@@ -41,12 +41,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
 
   const q = (url.searchParams.get("q") || "").trim();
+  const includeZero = (url.searchParams.get("includeZero") || "0") === "1"; // default exclude
+  const includeDraft = (url.searchParams.get("includeDraft") || "0") === "1"; // default exclude
+  const includeArchived = (url.searchParams.get("includeArchived") || "0") === "1"; // default exclude
   const after = url.searchParams.get("after");
   const before = url.searchParams.get("before");
   const pageSize = 50; // change to 250 if you like
 
   // Build final variant query string (multi-word AND with vendor/type narrowing)
-  const query = await buildVariantQueryString(admin, q);
+  const query = await buildVariantQueryString(admin, q, { includeDraft, includeArchived, includeZero });
 
   // Use first/after for forward, last/before for backward
   const variables: any = { query };
@@ -68,6 +71,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             id
             sku
             title
+            inventoryQuantity
             product{
               id
               title
@@ -144,6 +148,20 @@ export default function Labels() {
     const t = setTimeout(() => {
       const params = new URLSearchParams(location.search);
       if (input) params.set("q", input); else params.delete("q");
+      // Persist zero-inventory preference from localStorage
+      try {
+        const pref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_zero_inventory") : null;
+        const includeZero = pref === "1" ? "1" : "0"; // default exclude
+        params.set("includeZero", includeZero);
+        const draftPref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_draft") : null;
+        const includeDraft = draftPref === "1" ? "1" : "0";
+        params.set("includeDraft", includeDraft);
+        const archivedPref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_archived") : null;
+        const includeArchived = archivedPref === "1" ? "1" : "0";
+        params.set("includeArchived", includeArchived);
+      } catch {
+        // ignore
+      }
       // when changing query, reset cursors
       params.delete("after");
       params.delete("before");
@@ -325,6 +343,19 @@ export default function Labels() {
   function buildUrlWith(update: (p: URLSearchParams) => void) {
     const p = new URLSearchParams(location.search);
     if (input) p.set("q", input); else p.delete("q");
+    try {
+      const pref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_zero_inventory") : null;
+      const includeZero = pref === "1" ? "1" : "0"; // default exclude
+      p.set("includeZero", includeZero);
+      const draftPref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_draft") : null;
+      const includeDraft = draftPref === "1" ? "1" : "0";
+      p.set("includeDraft", includeDraft);
+      const archivedPref = typeof window !== "undefined" ? window.localStorage.getItem("search_include_archived") : null;
+      const includeArchived = archivedPref === "1" ? "1" : "0";
+      p.set("includeArchived", includeArchived);
+    } catch {
+      // ignore
+    }
     update(p);
     const qs = p.toString();
     return `${location.pathname}${qs ? `?${qs}` : ""}`;

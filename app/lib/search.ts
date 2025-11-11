@@ -33,18 +33,32 @@ export function fieldClauseForToken(t: string): string {
 
 // Build the productVariants query string for Shopify admin search, optionally narrowing by vendor/type via product IDs.
 // Returns null when q is empty.
-export async function buildVariantQueryString(admin: any, q: string): Promise<string | null> {
+export async function buildVariantQueryString(
+  admin: any,
+  q: string,
+  opts?: { includeDraft?: boolean; includeArchived?: boolean; includeZero?: boolean }
+): Promise<string | null> {
   const tokens = tokenizeQuery(q);
-  // Always exclude draft/archived products by default.
-  // For productVariants search, use product_status:active so filtering happens at the product level in the query.
-  const statusClause = "product_status:active";
-  if (!tokens.length) return statusClause;
+  // Status filtering (defaults to active only unless options request more)
+  const statuses: Array<"active" | "draft" | "archived"> = ["active"];
+  if (opts?.includeDraft) statuses.push("draft");
+  if (opts?.includeArchived) statuses.push("archived");
+  // For productVariants search, use product_status:* so filtering happens at the product level in the query.
+  const statusClause = `(${statuses
+    .map((s) => `product_status:${s}`)
+    .join(" OR ")})`;
+  // Zero-inventory filtering (default exclude zero when includeZero !== true)
+  const zeroInvClause = opts?.includeZero ? null : "inventory_quantity:>0";
+  if (!tokens.length) return [statusClause, zeroInvClause].filter(Boolean).join(" AND ");
 
   const perTokenClauses: string[] = [];
   for (const t of tokens) {
     let productIdsClause: string | null = null;
     try {
-      const pQuery = `(status:active AND (vendor:${t}* OR product_type:${t}*))`;
+      const productStatusClause = `(${statuses
+        .map((s) => `status:${s}`)
+        .join(" OR ")})`;
+      const pQuery = `(${productStatusClause} AND (vendor:${t}* OR product_type:${t}*))`;
       const pResp = await admin.graphql(
         `#graphql
         query ProductsForIds($first:Int!,$query:String){
@@ -66,5 +80,5 @@ export async function buildVariantQueryString(admin: any, q: string): Promise<st
     perTokenClauses.push(tokenClause);
   }
 
-  return [statusClause, ...perTokenClauses].join(" AND ");
+  return [statusClause, zeroInvClause, ...perTokenClauses].filter(Boolean).join(" AND ");
 }

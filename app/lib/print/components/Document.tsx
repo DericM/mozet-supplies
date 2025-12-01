@@ -33,6 +33,63 @@ export const PrintLabelGridDocument: React.FC<{
 				<meta charSet="utf-8" />
 				<title>Labels</title>
 					{GlobalStyles}
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `(() => {
+						  function ptToPx(pt){ return pt * (96/72); }
+						  function computeLineHeightPx(el, testPx){
+						    var cs = window.getComputedStyle(el);
+						    var lh = parseFloat(cs.lineHeight);
+						    if (!isFinite(lh)) return testPx * 1.0; // fallback to 1.0
+						    return lh;
+						  }
+						  function fitsAtPx(clone, lineHeightPx, px){
+						    clone.style.fontSize = px + 'px';
+						    // ensure layout flush
+						    clone.style.maxHeight = 'unset';
+						    var maxH = 3 * lineHeightPx;
+						    return clone.scrollHeight <= maxH + 0.5;
+						  }
+						  function fitNode(el){
+						    var rect = el.getBoundingClientRect();
+						    if (!rect || rect.width <= 0) return;
+						    var maxPx = ptToPx(10), minPx = ptToPx(6);
+						    // Build a measuring clone
+						    var clone = el.cloneNode(true);
+						    clone.style.position = 'absolute';
+						    clone.style.visibility = 'hidden';
+						    clone.style.pointerEvents = 'none';
+						    clone.style.zIndex = '-1';
+						    clone.style.width = rect.width + 'px';
+						    clone.style.display = 'block';
+						    clone.style.overflow = 'visible';
+						    clone.style.webkitLineClamp = 'unset';
+						    clone.style.WebkitLineClamp = 'unset';
+						    document.body.appendChild(clone);
+						    // Use current font to compute line height at max
+						    clone.style.fontSize = maxPx + 'px';
+						    var lineHeightPx = computeLineHeightPx(el, maxPx);
+						    var low = minPx, high = maxPx, best = low;
+						    for (var i=0;i<16;i++){
+						      var mid = (low + high) / 2;
+						      if (fitsAtPx(clone, lineHeightPx, mid)) { best = mid; low = mid; } else { high = mid; }
+						      if (high - low < 0.5) break;
+						    }
+						    // Apply to real element (keep -webkit-box and clamp)
+						    el.style.fontSize = best.toFixed(2) + 'px';
+						    // cleanup
+						    clone.remove();
+						  }
+						  function fitAll(){
+						    var nodes = document.querySelectorAll('.fit-title');
+						    nodes.forEach(function(el){ try { fitNode(el); } catch(_){} });
+						  }
+						  if (document.readyState === 'complete') { fitAll(); }
+						  else { window.addEventListener('load', fitAll, { once: true }); }
+						  window.addEventListener('beforeprint', fitAll);
+						})();`
+					}}
+				/>
 			</head>
 			<body>
 					<PageWrapper>

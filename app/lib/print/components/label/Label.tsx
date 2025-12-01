@@ -46,7 +46,7 @@ const Left = styled.div`
   justify-content: space-between;
   height: 100% - 0.04in;
   text-align: left;
-  padding: 0.02in 0.00in 0.02in 0.05in;
+  padding: 0.03in 0.00in 0.02in 0.05in;
   position: relative;
   z-index: 1;
   overflow: visible;
@@ -140,7 +140,7 @@ export const Label: React.FC<{ item: LabelFields }> = ({ item }) => (
           ))}
         </SkuP>
       </Top>
-      <Middle><TitleP>{item.title}</TitleP></Middle>
+  <Middle><TitleP className="fit-title">{item.title}</TitleP></Middle>
       <BottomMeta>
         <VendorSpan>{item.vendor}</VendorSpan>
         <DateSpan>{item.dateStr}</DateSpan>

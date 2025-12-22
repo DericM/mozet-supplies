@@ -1,0 +1,11 @@
+[[extensions]]
+name = "Add Label to Print Queue"
+handle = "add-label-to-print-queue"
+uid = "6bcb2aea-f349-1e9c-e503-25f9cfdeb5df3a39b1ef"
+type = "admin_link"
+
+# Target the product details page actions menu
+[[extensions.targeting]]
+target = "admin.product-details.action.link"
+# Relative path within your embedded app; Shopify appends store + resource params
+url = "/app/labels"

@@ -31,6 +31,7 @@ export default function AppLayout() {
           <a href="/app" rel="home">Labels</a>
           <a href="/app/settings">Settings</a>
           <a href="/app/readme">Readme</a>
+          <a href="/app/print-history">Print History</a>
         </NavMenu>
         <Outlet />
       </AppBridgeProvider>

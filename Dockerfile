@@ -1,6 +1,8 @@
 FROM node:20-bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl ca-certificates \
+    ca-certificates \
+    openssl \
+    libssl3 \
   && rm -rf /var/lib/apt/lists/*
 
 # ---------- Builder stage ----------

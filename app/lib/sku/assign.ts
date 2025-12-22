@@ -1,6 +1,6 @@
 // app/lib/sku/assign.ts
 import type { AdminClient, ProductForSku, VariantForSku } from "./types";
-import { groupKey, buildSku } from "./rules";
+import { groupKey, buildSku, typeToTT, vendorToVV } from "./rules";
 import { reserveNextForGroup } from "./sequence";
 
 const PRODUCT_FOR_SKU_Q = `#graphql
@@ -93,37 +93,75 @@ export async function ensureSkusForProduct(
     return;
   }
 
-  // 2) Compute group from product fields
-  const group = groupKey(product.productType ?? undefined, product.vendor ?? undefined);
+  // 2) Compute group and current abbreviations
+  const typeRaw = product.productType ?? undefined;
+  const vendorRaw = product.vendor ?? undefined;
+  const group = groupKey(typeRaw, vendorRaw);
+  const currTT = typeToTT(typeRaw);
+  const currVV = vendorToVV(vendorRaw);
 
-  // 3) Reserve one sequence number for the whole product (shared across variants)
-  const seq = await reserveNextForGroup(admin, group);
+  // Extract existing sequence and prefix (first 4 chars) from any existing SKU
+  const extractSeqAndPrefix = (sku?: string | null): { seq: number | null; prefix: string | null } => {
+    const s = (sku || "").toUpperCase().trim();
+    const m = s.match(/^[A-Z0-9]{4}(\d{3})/);
+    if (!m) return { seq: null, prefix: null };
+    return { seq: parseInt(m[1]!, 10), prefix: s.slice(0, 4) };
+  };
 
-  // 4) Prepare patches
-  const toUpdate: VariantSetInput[] = [];
+  let existingSeq: number | null = null;
+  let existingPrefix: string | null = null;
+  for (const v of product.variants.nodes as VariantForSku[]) {
+    if (v.sku && v.sku.trim() !== "") {
+      const { seq, prefix } = extractSeqAndPrefix(v.sku);
+      if (seq && prefix) {
+        existingSeq = seq;
+        existingPrefix = prefix;
+        break;
+      }
+    }
+  }
+
+  const currentPrefixNew = `${currVV}${currTT}`; // new order VVTT
+  const currentPrefixOld = `${currTT}${currVV}`; // old order TTVV
+  const groupUnchanged = existingPrefix
+    ? existingPrefix.startsWith(currentPrefixNew) || existingPrefix.startsWith(currentPrefixOld)
+    : false;
+
+  // 3) Decide which variants to update; defer sequence reservation until needed
+  type PendingVariant = { id: string; optionValues: Array<{ optionName: string; name: string }>; };
+  const pending: PendingVariant[] = [];
   for (const v of product.variants.nodes as VariantForSku[]) {
     const hasSku = !!(v.sku && v.sku.trim() !== "");
     if (overwrite || !hasSku) {
-      const optionVals = (v.selectedOptions ?? []).map((o) => String(o.value || ""));
-      const desired = buildSku(product.productType ?? undefined, product.vendor ?? undefined, seq, optionVals);
-      toUpdate.push({
-        id: v.id,
-        sku: desired,
-        optionValues: buildVariantOptionValues(v),
-      });
+      pending.push({ id: v.id, optionValues: buildVariantOptionValues(v) });
     }
   }
-  if (toUpdate.length === 0) {
+  if (pending.length === 0) {
     console.log("[assign] nothing to do");
     return;
   }
 
-  // 5) productSet requires productOptions whenever variants are present
+  // 4) Choose sequence: reuse existing when group unchanged; otherwise reserve new
+  let seq: number;
+  if (existingSeq !== null && groupUnchanged) {
+    seq = existingSeq;
+  } else {
+    seq = await reserveNextForGroup(admin, group);
+  }
+
+  // 5) Build final updates with chosen sequence
+  const toUpdate: VariantSetInput[] = pending.map((p) => ({
+    id: p.id,
+    sku: buildSku(typeRaw, vendorRaw, seq, p.optionValues.map((ov) => ov.name)),
+    optionValues: p.optionValues,
+  }));
+
+  // 6) productSet requires productOptions whenever variants are present
   const optionsInput = buildOptionsInput(
     (product as unknown as { options?: Array<{ name: string; position: number; values: string[] }> }).options
   );
 
-  // 6) Apply in one call
+  // 7) Apply in one call
   const mRes = await admin.graphql(PRODUCT_SET_MUT, {
     variables: {
       identifier: { id: productGid },

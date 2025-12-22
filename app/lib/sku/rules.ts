@@ -15,8 +15,13 @@
 //  - Priority 3: Vowels (non-leading characters)
 // We eliminate from right to left by priority (3, then 2, then 1) until 3 remain.
 function initialsPriorityAbbrevN(inputRaw: string | undefined, N: number): string {
-  const input = inputRaw || "";
-  const tokens = input.match(/[A-Za-z0-9]+/g) || [];
+  // New rule: ignore everything after a pipe (|)
+  let base = inputRaw || "";
+  const idx = base.indexOf("|");
+  if (idx !== -1) base = base.slice(0, idx);
+  base = base.trim();
+
+  const tokens = base.match(/[A-Za-z0-9]+/g) || [];
 
   const isVowel = (ch: string) => /^[AEIOU]$/.test(ch);
   const isConsonant = (ch: string) => /^[A-Z]$/.test(ch) && !isVowel(ch);
@@ -47,8 +52,8 @@ function initialsPriorityAbbrevN(inputRaw: string | undefined, N: number): strin
 
   // If nothing usable, fall back
   if (candidates.length === 0) {
-    // Fallbacks
-    const cleaned = (inputRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    // Fallbacks (apply the same pipe cutoff)
+    const cleaned = base.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!cleaned) return "X".repeat(N);
     return (cleaned + "X".repeat(N)).slice(0, N);
   }
@@ -88,9 +93,9 @@ export function optionToTT(valueRaw?: string): string {
 export const groupKey = (typeRaw?: string, vendorRaw?: string) =>
   `${typeToTT(typeRaw)}-${vendorToVV(vendorRaw)}`;
 
-// New SKU format: TT VV SSS [OO]... (concatenated, no hyphens)
-// - TT: 2-letter type
-// - VV: 2-letter vendor
+// New SKU format: VV TT SSS [OO]... (concatenated, no hyphens)
+// - VV: 2-letter vendor (first)
+// - TT: 2-letter type (second)
 // - SSS: 3-digit decimal sequence, zero-padded
 // - OO..: 2-letter per option value (order as provided)
 export function buildSku(
@@ -103,5 +108,5 @@ export function buildSku(
   const VV = vendorToVV(vendorRaw);
   const SSS = String(Math.max(0, Math.floor(seq))).padStart(3, "0");
   const OO = optionValues.map((v) => optionToTT(v)).join("");
-  return `${TT}${VV}${SSS}${OO}`;
+  return `${VV}${TT}${SSS}${OO}`;
 }

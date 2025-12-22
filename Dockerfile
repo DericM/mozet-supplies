@@ -15,7 +15,8 @@ ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
   PRISMA_ENGINES_CHECKS=1 \
   DEBUG="*prisma*"
 COPY package.json package-lock.json* ./
-RUN npm ci && npm remove @shopify/cli || true
+# Use npm install to support absence of lockfile in CI context
+RUN npm install --no-audit --no-fund && npm remove @shopify/cli || true
 COPY . .
 # Diagnostics to help identify build failures in CI
 RUN node -v && npm -v && npx prisma --version || true

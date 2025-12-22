@@ -9,13 +9,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+ARG TARGETPLATFORM
+ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
+    PRISMA_CLI_QUERY_ENGINE_TYPE=binary
 COPY package.json package-lock.json* ./
 RUN npm ci && npm remove @shopify/cli || true
 COPY . .
 # Diagnostics to help identify build failures in CI
 RUN node -v && npm -v && npx prisma --version || true
 # Ensure Prisma client is generated before server bundling
-RUN npx prisma generate --log-level info
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+      export PRISMA_CLIENT_ENGINE_BINARY_TARGETS=linux-arm64-openssl-3.0.x; \
+    else \
+      export PRISMA_CLIENT_ENGINE_BINARY_TARGETS=linux-x64-openssl-3.0.x; \
+    fi; \
+    npx prisma generate --log-level info
 RUN npm run build
 
 # ---------- Runtime stage ----------

@@ -17,25 +17,29 @@ ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
 COPY package.json package-lock.json* ./
 RUN npm ci && npm remove @shopify/cli || true
 COPY . .
-# Validate Prisma schema presence
-RUN ls -la prisma || true && test -f prisma/schema.prisma && echo "Prisma schema found" || (echo "Prisma schema missing" && exit 1)
 # Diagnostics to help identify build failures in CI
 RUN node -v && npm -v && npx prisma --version || true
-# Ensure Prisma client is generated before server bundling
-RUN npx prisma generate --schema=./prisma/schema.prisma --log-level debug --debug
 RUN npm run build
 
 # ---------- Runtime stage ----------
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
+  PRISMA_CLI_QUERY_ENGINE_TYPE=binary \
+  PRISMA_ENGINES_CHECKS=1 \
+  DEBUG="*prisma*"
 COPY package.json package-lock.json* ./
 # Use the exact node_modules from the builder to avoid runtime resolution issues,
 # then prune devDependencies for a lean image.
 COPY --from=builder /app/node_modules ./node_modules
+# Copy prisma schema and assets
+COPY --from=builder /app/prisma ./prisma
+# Generate Prisma client in the final image (avoids cross-arch buildx issues)
+RUN ls -la prisma || true && test -f prisma/schema.prisma && echo "Prisma schema found" || (echo "Prisma schema missing" && exit 1)
+RUN npx prisma generate --schema=./prisma/schema.prisma --log-level info
 RUN npm prune --omit=dev && npm cache clean --force && npm remove @shopify/cli || true
 COPY --from=builder /app/build ./build
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 EXPOSE 3000
 CMD ["npm", "run", "docker-start"]

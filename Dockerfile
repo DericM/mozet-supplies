@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---------- Builder stage ----------
 FROM base AS builder
 WORKDIR /app
-ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PRISMA_SKIP_POSTINSTALL_GENERATE=true
 ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
   PRISMA_CLI_QUERY_ENGINE_TYPE=binary \
   PRISMA_ENGINES_CHECKS=1 \
@@ -16,10 +17,12 @@ ENV PRISMA_CLIENT_ENGINE_TYPE=binary \
 COPY package.json package-lock.json* ./
 RUN npm ci && npm remove @shopify/cli || true
 COPY . .
+# Validate Prisma schema presence
+RUN ls -la prisma || true && test -f prisma/schema.prisma && echo "Prisma schema found" || (echo "Prisma schema missing" && exit 1)
 # Diagnostics to help identify build failures in CI
 RUN node -v && npm -v && npx prisma --version || true
 # Ensure Prisma client is generated before server bundling
-RUN npx prisma generate --log-level info
+RUN npx prisma generate --schema=./prisma/schema.prisma --log-level debug --debug
 RUN npm run build
 
 # ---------- Runtime stage ----------

@@ -34,13 +34,11 @@ COPY package.json package-lock.json* ./
 # Use the exact node_modules from the builder to avoid runtime resolution issues,
 # then prune devDependencies for a lean image.
 COPY --from=builder /app/node_modules ./node_modules
-# Copy prisma schema and assets
 COPY --from=builder /app/prisma ./prisma
-# Generate Prisma client in the final image (avoids cross-arch buildx issues)
-RUN ls -la prisma || true && test -f prisma/schema.prisma && echo "Prisma schema found" || (echo "Prisma schema missing" && exit 1)
-RUN npx prisma generate --schema=./prisma/schema.prisma --log-level info
 RUN npm prune --omit=dev && npm cache clean --force && npm remove @shopify/cli || true
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/public ./public
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 EXPOSE 3000
-CMD ["npm", "run", "docker-start"]
+CMD ["./docker-entrypoint.sh"]

@@ -10,8 +10,11 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json* ./
 RUN npm ci && npm remove @shopify/cli || true
 COPY . .
+# Diagnostics to help identify build failures in CI
+RUN node -v && npm -v && npx prisma --version || true
 # Ensure Prisma client is generated before server bundling
-RUN npx prisma generate && npm run build
+RUN npx prisma generate --log-level info
+RUN npm run build
 
 # ---------- Runtime stage ----------
 FROM base AS runner

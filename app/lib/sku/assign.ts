@@ -128,12 +128,16 @@ export async function ensureSkusForProduct(
     : false;
 
   // 3) Decide which variants to update; defer sequence reservation until needed
-  type PendingVariant = { id: string; optionValues: Array<{ optionName: string; name: string }>; };
+  type PendingVariant = { id: string; optionValues: Array<{ optionName: string; name: string }>; hasRealOptions: boolean };
   const pending: PendingVariant[] = [];
   for (const v of product.variants.nodes as VariantForSku[]) {
     const hasSku = !!(v.sku && v.sku.trim() !== "");
     if (overwrite || !hasSku) {
-      pending.push({ id: v.id, optionValues: buildVariantOptionValues(v) });
+      pending.push({
+        id: v.id,
+        optionValues: buildVariantOptionValues(v),
+        hasRealOptions: (v.selectedOptions ?? []).length > 0,
+      });
     }
   }
   if (pending.length === 0) {
@@ -152,7 +156,12 @@ export async function ensureSkusForProduct(
   // 5) Build final updates with chosen sequence
   const toUpdate: VariantSetInput[] = pending.map((p) => ({
     id: p.id,
-    sku: buildSku(typeRaw, vendorRaw, seq, p.optionValues.map((ov) => ov.name)),
+    sku: buildSku(
+      typeRaw,
+      vendorRaw,
+      seq,
+      p.hasRealOptions ? p.optionValues.map((ov) => ov.name) : []
+    ),
     optionValues: p.optionValues,
   }));
 

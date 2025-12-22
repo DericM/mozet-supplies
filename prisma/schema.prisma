@@ -3,9 +3,8 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Use Docker-set env to select correct engine per target platform during buildx
-  // e.g. linux-x64-openssl-3.0.x or linux-arm64-openssl-3.0.x
-  binaryTargets = env("PRISMA_CLIENT_ENGINE_BINARY_TARGETS")
+  // Ship both common Linux targets so multi-arch buildx can succeed
+  binaryTargets = ["linux-x64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 // Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long

@@ -6,6 +6,8 @@ services:
       NODE_ENV: production
       # Set this to your public HTTPS origin
       SHOPIFY_APP_URL: https://mozet-supplies.dericm.dev
+      # Persist SQLite DB under /app/data (mounted volume)
+      DATABASE_URL: file:./data/dev.sqlite
       # Provide the rest via an .env file or your platform's secret manager
       # SHOPIFY_API_KEY: ${SHOPIFY_API_KEY}
       # SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET}
@@ -16,7 +18,7 @@ services:
     restart: unless-stopped
     # Persist Prisma SQLite file across restarts
     volumes:
-      - prisma-data:/app/prisma
+      - prisma-data:/app/data
     # App listens on 3000 inside the network; not exposed publicly (Caddy proxies it)
     expose:
       - "3000"

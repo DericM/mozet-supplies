@@ -8,12 +8,12 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 // This endpoint must NOT trigger authenticate.admin.
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  if (url.pathname.includes("/auth/session-token")) {
-    return null;
+  // For App Bridge JWT refreshes, return 204 with no body to avoid rendering "null"
+  if (url.pathname.endsWith("/auth/session-token")) {
+    return new Response(null, { status: 204 });
   }
-
-  await authenticate.admin(request);
-  return null;
+  // Let the Shopify helper return the appropriate Response/Redirect
+  return authenticate.admin(request);
 };
 
 export const headers: HeadersFunction = (headersArgs) => {

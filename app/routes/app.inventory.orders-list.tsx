@@ -26,12 +26,16 @@ const DEFAULT_TARGET_COVER_DAYS = 21; // aim to have 3 weeks on hand after order
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const url = new URL(request.url);
+  // Respect API scope limits: without read_all_orders Shopify only allows 60 days of order history
+  const scopes = new Set<string>((session?.scope || "").split(",").filter(Boolean));
+  const hasReadAllOrders = scopes.has("read_all_orders");
+  const scopeWindowCap = hasReadAllOrders ? 180 : 60;
   const windowDays = Math.max(
     1,
-    Math.min(180, Number(url.searchParams.get("windowDays")) || DEFAULT_WINDOW_DAYS)
+    Math.min(scopeWindowCap, Number(url.searchParams.get("windowDays")) || Math.min(DEFAULT_WINDOW_DAYS, scopeWindowCap))
   );
   const leadTimeDays = Math.max(
     0,
@@ -215,6 +219,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   };
   } catch (err: any) {
     console.error("InventoryOrdersList loader error:", err);
+    let message = err?.message || String(err);
+    // Provide actionable help for common Shopify scope issues
+    if (typeof message === "string" && message.includes("Access denied for orders field")) {
+      message +=
+        "\n\nFix: Grant the app the read_orders scope (and optionally read_all_orders for >60 days)." +
+        "\nAdd to SCOPES in your .env: read_orders,read_all_orders,read_inventory,read_locations" +
+        "\nThen restart the server and re-authenticate the app (visit /auth).";
+    }
     return {
       items: [] as ReorderRow[],
       windowDays: Number(new URL(request.url).searchParams.get("windowDays")) || DEFAULT_WINDOW_DAYS,
@@ -222,7 +234,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       targetCoverDays: Number(new URL(request.url).searchParams.get("targetCoverDays")) || DEFAULT_TARGET_COVER_DAYS,
       generatedAt: new Date().toISOString(),
       error: {
-        message: err?.message || String(err),
+        message,
         stack: err?.stack,
       },
     };

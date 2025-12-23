@@ -25,6 +25,7 @@ const DEFAULT_LEAD_TIME_DAYS = 14;
 const DEFAULT_TARGET_COVER_DAYS = 21; // aim to have 3 weeks on hand after ordering
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  try {
   const { admin } = await authenticate.admin(request);
 
   const url = new URL(request.url);
@@ -212,19 +213,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
     targetCoverDays,
     generatedAt: new Date().toISOString(),
   };
+  } catch (err: any) {
+    console.error("InventoryOrdersList loader error:", err);
+    return {
+      items: [] as ReorderRow[],
+      windowDays: Number(new URL(request.url).searchParams.get("windowDays")) || DEFAULT_WINDOW_DAYS,
+      leadTimeDays: Number(new URL(request.url).searchParams.get("leadTimeDays")) || DEFAULT_LEAD_TIME_DAYS,
+      targetCoverDays: Number(new URL(request.url).searchParams.get("targetCoverDays")) || DEFAULT_TARGET_COVER_DAYS,
+      generatedAt: new Date().toISOString(),
+      error: {
+        message: err?.message || String(err),
+        stack: err?.stack,
+      },
+    };
+  }
 }
 
 export default function InventoryOrdersList() {
-  const { items, windowDays, leadTimeDays, targetCoverDays } = useLoaderData() as {
+  const { items, windowDays, leadTimeDays, targetCoverDays, error } = useLoaderData() as {
     items: ReorderRow[];
     windowDays: number;
     leadTimeDays: number;
     targetCoverDays: number;
     generatedAt: string;
+    error?: { message: string; stack?: string };
   };
 
   return (
     <Page title="Inventory Reorder Priorities" subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
+      {error && (
+        <Card sectioned title="Loader Error">
+          <Text as="p" color="critical">{error.message}</Text>
+          {error.stack && <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>{error.stack}</pre>}
+        </Card>
+      )}
       <Card>
         <IndexTable
           resourceName={{ singular: "variant", plural: "variants" }}

@@ -12,8 +12,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (url.pathname.endsWith("/auth/session-token")) {
     return new Response(null, { status: 204 });
   }
-  // Let the Shopify helper return the appropriate Response/Redirect
-  return authenticate.admin(request);
+  // Use Shopify helper; if it returns a Response (redirect, etc.), forward it.
+  // Otherwise, suppress any loader data by returning 204 No Content so nothing renders as text.
+  const result = await authenticate.admin(request);
+  if (result instanceof Response) return result;
+  return new Response(null, { status: 204 });
 };
 
 export const headers: HeadersFunction = (headersArgs) => {

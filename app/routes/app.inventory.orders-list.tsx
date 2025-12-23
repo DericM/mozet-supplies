@@ -3,8 +3,6 @@ import { useLoaderData } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { Page, Card, IndexTable, Text, Badge } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import fs from "fs/promises";
-import path from "path";
 
 type ReorderRow = {
   id: string; // Variant GID
@@ -53,6 +51,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const useMock = url.searchParams.get("mock") === "1" || process.env.USE_MOCK === "1";
   if (useMock) {
     try {
+      const fs = await import("fs/promises");
+      const path = await import("path");
       const p = path.join(process.cwd(), "app", "data", "mock-reorder.json");
       const raw = await fs.readFile(p, "utf8");
       const obj = JSON.parse(raw);

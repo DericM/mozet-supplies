@@ -3,8 +3,8 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Ship both common Linux targets so multi-arch buildx can succeed
-  binaryTargets = ["linux-x64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+  // Use native binary target to match the host environment
+  binaryTargets = ["native"]
 }
 
 // Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long

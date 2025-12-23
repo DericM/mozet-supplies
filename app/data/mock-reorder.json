@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "id": "gid://shopify/ProductVariant/1111",
+      "sku": "SKU-EX-001",
+      "title": "Blue, Small",
+      "productTitle": "Example Tee",
+      "vendor": "Acme Co",
+      "soldWindowDays": 30,
+      "soldQty": 45,
+      "velocityPerDay": 1.5,
+      "onHand": 5,
+      "incoming": 0,
+      "daysOfCover": 3.3333333333333335,
+      "reorderPoint": 21,
+      "suggestedOrderQty": 27
+    },
+    {
+      "id": "gid://shopify/ProductVariant/2222",
+      "sku": "SKU-EX-002",
+      "title": "Red, Large",
+      "productTitle": "Example Hoodie",
+      "vendor": "Acme Co",
+      "soldWindowDays": 30,
+      "soldQty": 10,
+      "velocityPerDay": 0.3333333333333333,
+      "onHand": 1,
+      "incoming": 0,
+      "daysOfCover": 3,
+      "reorderPoint": 5,
+      "suggestedOrderQty": 10
+    }
+  ],
+  "windowDays": 180,
+  "leadTimeDays": 14,
+  "targetCoverDays": 21,
+  "generatedAt": "2025-12-23T00:00:00Z"
+}

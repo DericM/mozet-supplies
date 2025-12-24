@@ -150,7 +150,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
             inventoryItem{
               id
               inventoryLevels(first: 100){
-                nodes{ available incoming location{ id name } }
+                nodes{
+                  quantities(names: [AVAILABLE, INCOMING]){ name quantity }
+                  location{ id name }
+                }
               }
             }
           }
@@ -165,8 +168,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const soldQty = Number(variantSales.get(n.id) || 0);
       const velocity = soldQty / windowDays;
       const levels: any[] = n?.inventoryItem?.inventoryLevels?.nodes ?? [];
-      const onHand = levels.reduce((acc, lvl) => acc + Number(lvl?.available || 0), 0);
-      const incoming = levels.reduce((acc, lvl) => acc + Number(lvl?.incoming || 0), 0);
+      const onHand = levels.reduce((acc, lvl) => {
+        const qs: any[] = lvl?.quantities ?? [];
+        const avail = qs.find((q) => q?.name === "AVAILABLE")?.quantity ?? 0;
+        return acc + Number(avail || 0);
+      }, 0);
+      const incoming = levels.reduce((acc, lvl) => {
+        const qs: any[] = lvl?.quantities ?? [];
+        const inc = qs.find((q) => q?.name === "INCOMING")?.quantity ?? 0;
+        return acc + Number(inc || 0);
+      }, 0);
       let daysOfCover: number;
       if (velocity <= 0) {
         daysOfCover = Infinity;
@@ -226,6 +237,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
         "\n\nFix: Grant the app the read_orders scope (and optionally read_all_orders for >60 days)." +
         "\nAdd to SCOPES in your .env: read_orders,read_all_orders,read_inventory,read_locations" +
         "\nThen restart the server and re-authenticate the app (visit /auth).";
+    }
+    if (typeof message === "string" && message.includes("Field 'available' doesn't exist on type 'InventoryLevel'")) {
+      message +=
+        "\n\nFix: You're on a newer API version where InventoryLevel.available/incoming were removed." +
+        "\nThis route has been updated to use InventoryLevel.quantities(names: [AVAILABLE, INCOMING])." +
+        "\nIf you still see this, ensure your app is running the latest build and clear any server cache.";
     }
     return {
       items: [] as ReorderRow[],

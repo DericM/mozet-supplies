@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useLoaderData } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { Page, Card, IndexTable, Text, Badge } from "@shopify/polaris";
+import { Page, Card, IndexTable, Text } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 
 type ReorderRow = {
@@ -10,6 +10,8 @@ type ReorderRow = {
   title: string;
   productTitle: string;
   vendor: string | null;
+  priceAmount: number | null;
+  currencyCode: string | null;
   soldWindowDays: number;
   soldQty: number;
   velocityPerDay: number;
@@ -18,6 +20,7 @@ type ReorderRow = {
   daysOfCover: number; // based on onHand only
   reorderPoint: number;
   suggestedOrderQty: number;
+  estLostRevenue30d: number;
 };
 
 const DEFAULT_WINDOW_DAYS = 730; // 2 years
@@ -147,6 +150,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             id
             sku
             title
+            price { amount currencyCode }
             product{ title vendor status }
             inventoryItem{
               id
@@ -193,6 +197,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const targetStock = velocity * targetCoverDays;
       const suggestedOrderQty = Math.max(0, Math.ceil(targetStock - onHand - incoming));
 
+      // Estimated lost revenue over next 30 days, based on on-hand cover only and current variant price
+      const horizonDays = 30;
+      let estLostRevenue30d = 0;
+      if (velocity > 0) {
+        const onHandCover = onHand / velocity;
+        const stockoutDays = Math.max(0, horizonDays - Math.min(horizonDays, onHandCover));
+        const lostUnits = velocity * stockoutDays;
+        const priceAmount = n?.price?.amount != null ? Number(n.price.amount) : 0;
+        estLostRevenue30d = lostUnits * (isFinite(priceAmount) ? priceAmount : 0);
+      }
+
       // Only include items that need ordering and have some sales velocity
       if (velocity > 0 && onHand + incoming < reorderPoint) {
         rows.push({
@@ -201,6 +216,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           title: String(n.title || "Variant"),
           productTitle: String(n?.product?.title || "Product"),
           vendor: n?.product?.vendor ?? null,
+          priceAmount: n?.price?.amount != null ? Number(n.price.amount) : null,
+          currencyCode: n?.price?.currencyCode ?? null,
           soldWindowDays: windowDays,
           soldQty,
           velocityPerDay: velocity,
@@ -209,17 +226,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
           daysOfCover,
           reorderPoint,
           suggestedOrderQty,
+          estLostRevenue30d,
         });
       }
     }
   }
 
-  // Sort by lowest days of cover, then highest velocity
+  // Sort by highest estimated lost revenue (30d), then highest velocity, then lowest days of cover
   rows.sort((a, b) => {
+    const lr = (b.estLostRevenue30d || 0) - (a.estLostRevenue30d || 0);
+    if (lr !== 0) return lr;
+    const vel = b.velocityPerDay - a.velocityPerDay;
+    if (vel !== 0) return vel;
     const aDoc = isFinite(a.daysOfCover) ? a.daysOfCover : 1e9;
     const bDoc = isFinite(b.daysOfCover) ? b.daysOfCover : 1e9;
-    if (aDoc !== bDoc) return aDoc - bDoc;
-    return b.velocityPerDay - a.velocityPerDay;
+    return aDoc - bDoc;
   });
 
   return {
@@ -275,6 +296,16 @@ export default function InventoryOrdersList() {
     error?: { message: string; stack?: string };
   };
 
+  function formatCurrency(amount: number, currencyCode?: string | null) {
+    const code = currencyCode || "USD";
+    try {
+      return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).format(amount || 0);
+    } catch {
+      // Fallback if the currency code is unexpected
+      return `${code} ${Number(amount || 0).toFixed(2)}`;
+    }
+  }
+
   return (
     <Page title="Inventory Reorder Priorities" fullWidth subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
       {error && (
@@ -298,6 +329,7 @@ export default function InventoryOrdersList() {
             { title: "On hand" },
             { title: "Incoming" },
             { title: "Days cover" },
+            { title: "Est lost rev (30d)" },
             { title: "Reorder pt" },
             { title: "Suggest qty" },
           ]}
@@ -316,12 +348,8 @@ export default function InventoryOrdersList() {
               <IndexTable.Cell>{it.incoming}</IndexTable.Cell>
               <IndexTable.Cell>
                 {Number.isFinite(it.daysOfCover) ? it.daysOfCover.toFixed(1) : "∞"}
-                {it.daysOfCover < leadTimeDays && (
-                  <span style={{ marginLeft: 6 }}>
-                    <Badge tone="critical">Risk</Badge>
-                  </span>
-                )}
               </IndexTable.Cell>
+              <IndexTable.Cell>{formatCurrency(it.estLostRevenue30d, it.currencyCode)}</IndexTable.Cell>
               <IndexTable.Cell>{Math.ceil(it.reorderPoint)}</IndexTable.Cell>
               <IndexTable.Cell>
                 <Text as="span" variant="bodyMd" fontWeight="bold">{it.suggestedOrderQty}</Text>

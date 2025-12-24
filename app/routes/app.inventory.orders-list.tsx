@@ -290,7 +290,6 @@ export default function InventoryOrdersList() {
           selectable={false}
           headings={[
             { title: "Product" },
-            { title: "Variant" },
             { title: "Vendor" },
             { title: "SKU" },
             { title: `Sold (${windowDays}d)` },
@@ -306,8 +305,8 @@ export default function InventoryOrdersList() {
             <IndexTable.Row id={it.id} key={it.id} position={idx}>
               <IndexTable.Cell>
                 <Text as="span" variant="bodyMd" fontWeight="semibold">{it.productTitle}</Text>
+                {it.title ? <span>{" - "}{it.title}</span> : null}
               </IndexTable.Cell>
-              <IndexTable.Cell>{it.title}</IndexTable.Cell>
               <IndexTable.Cell>{it.vendor || "—"}</IndexTable.Cell>
               <IndexTable.Cell>{it.sku || "—"}</IndexTable.Cell>
               <IndexTable.Cell>{it.soldQty}</IndexTable.Cell>

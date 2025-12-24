@@ -230,13 +230,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const targetStock = velocity * targetCoverDays;
       const suggestedOrderQty = Math.max(0, Math.ceil(targetStock - onHand - incoming));
 
-      // Estimated revenue over next 30 days, assuming full stock (no stockouts)
+      // Estimated LOST revenue over next 30 days, accounting for current supply
       const horizonDays = 30;
       let estLostRevenue30d = 0;
       if (velocity > 0) {
         const priceAmount = n?.price != null ? Number(n.price) : 0;
-        const projectedUnits = velocity * horizonDays;
-        estLostRevenue30d = projectedUnits * (isFinite(priceAmount) ? priceAmount : 0);
+        const potentialUnits = velocity * horizonDays;
+        const includeIncoming = leadTimeDays < horizonDays;
+        const usableSupply = onHand + (includeIncoming ? incoming : 0);
+        const lostUnits = Math.max(0, potentialUnits - usableSupply);
+        estLostRevenue30d = lostUnits * (isFinite(priceAmount) ? priceAmount : 0);
       }
 
       // Only include items that need ordering and have some sales velocity

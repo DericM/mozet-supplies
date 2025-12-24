@@ -30,6 +30,15 @@ const DEFAULT_TARGET_COVER_DAYS = 365; // aim to have ~1 year on hand after orde
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
   const { admin, session } = await authenticate.admin(request);
+  // Fetch shop currency code once for formatting
+  let shopCurrency: string | null = null;
+  try {
+    const shopResp = await admin.graphql(`#graphql\n{ shop { currencyCode } }`);
+    const shopJson = await shopResp.json();
+    shopCurrency = shopJson?.data?.shop?.currencyCode || null;
+  } catch {
+    shopCurrency = null;
+  }
 
   const url = new URL(request.url);
   // Respect API scope limits: without read_all_orders Shopify only allows 60 days of order history
@@ -150,7 +159,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             id
             sku
             title
-            price { amount currencyCode }
+            price
             product{ title vendor status }
             inventoryItem{
               id
@@ -197,15 +206,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const targetStock = velocity * targetCoverDays;
       const suggestedOrderQty = Math.max(0, Math.ceil(targetStock - onHand - incoming));
 
-      // Estimated lost revenue over next 30 days, based on on-hand cover only and current variant price
+      // Estimated revenue over next 30 days, assuming full stock (no stockouts)
       const horizonDays = 30;
       let estLostRevenue30d = 0;
       if (velocity > 0) {
-        const onHandCover = onHand / velocity;
-        const stockoutDays = Math.max(0, horizonDays - Math.min(horizonDays, onHandCover));
-        const lostUnits = velocity * stockoutDays;
-        const priceAmount = n?.price?.amount != null ? Number(n.price.amount) : 0;
-        estLostRevenue30d = lostUnits * (isFinite(priceAmount) ? priceAmount : 0);
+        const priceAmount = n?.price != null ? Number(n.price) : 0;
+        const projectedUnits = velocity * horizonDays;
+        estLostRevenue30d = projectedUnits * (isFinite(priceAmount) ? priceAmount : 0);
       }
 
       // Only include items that need ordering and have some sales velocity
@@ -216,8 +223,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           title: String(n.title || "Variant"),
           productTitle: String(n?.product?.title || "Product"),
           vendor: n?.product?.vendor ?? null,
-          priceAmount: n?.price?.amount != null ? Number(n.price.amount) : null,
-          currencyCode: n?.price?.currencyCode ?? null,
+          priceAmount: n?.price != null ? Number(n.price) : null,
+          currencyCode: shopCurrency,
           soldWindowDays: windowDays,
           soldQty,
           velocityPerDay: velocity,
@@ -271,6 +278,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
         "\n\nFix: The 'names' argument expects a list of strings using lower-case enum values." +
         "\nThis route now uses quantities(names: [\"available\", \"incoming\"])." +
         "\nRedeploy and hard refresh to ensure the latest build is active.";
+    }
+    if (typeof message === "string" && message.includes("Selections can't be made on scalars (field 'price'")) {
+      message +=
+        "\n\nFix: ProductVariant.price is a scalar in this API version. The code now queries it as a scalar and uses the shop currency for formatting.";
     }
     return {
       items: [] as ReorderRow[],

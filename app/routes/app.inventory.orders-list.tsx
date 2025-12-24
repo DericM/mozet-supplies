@@ -220,7 +220,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         const now = new Date();
         const end = onHand === 0 && lastAt ? lastAt : now;
         const ms = Math.max(0, end.getTime() - start.getTime());
-        const inStockDays = Math.max(1, ms / (24 * 60 * 60 * 1000));
+        // Impose a minimum in-stock period of 30 days to avoid inflating velocity on very short spans
+        const inStockDays = Math.max(30, ms / (24 * 60 * 60 * 1000));
         velocity = soldQty / inStockDays;
         // Days of cover based solely on current on-hand inventory (never negative)
         daysOfCover = onHand / velocity;

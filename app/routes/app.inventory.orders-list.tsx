@@ -20,9 +20,9 @@ type ReorderRow = {
   suggestedOrderQty: number;
 };
 
-const DEFAULT_WINDOW_DAYS = 180; // 6 months
+const DEFAULT_WINDOW_DAYS = 730; // 2 years
 const DEFAULT_LEAD_TIME_DAYS = 30;
-const DEFAULT_TARGET_COVER_DAYS = 90; // aim to have ~3 months on hand after ordering
+const DEFAULT_TARGET_COVER_DAYS = 365; // aim to have ~1 year on hand after ordering
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -32,7 +32,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Respect API scope limits: without read_all_orders Shopify only allows 60 days of order history
   const scopes = new Set<string>((session?.scope || "").split(",").filter(Boolean));
   const hasReadAllOrders = scopes.has("read_all_orders");
-  const scopeWindowCap = hasReadAllOrders ? 180 : 60;
+  // Allow up to 2 years if read_all_orders is granted; otherwise cap to 60 days
+  const scopeWindowCap = hasReadAllOrders ? 730 : 60;
   const windowDays = Math.max(
     1,
     Math.min(scopeWindowCap, Number(url.searchParams.get("windowDays")) || Math.min(DEFAULT_WINDOW_DAYS, scopeWindowCap))

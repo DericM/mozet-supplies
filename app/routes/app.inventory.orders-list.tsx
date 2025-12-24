@@ -146,7 +146,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             id
             sku
             title
-            product{ title vendor }
+            product{ title vendor status }
             inventoryItem{
               id
               inventoryLevels(first: 100){
@@ -165,6 +165,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const nodes: any[] = vJson?.data?.nodes ?? [];
     for (const n of nodes) {
       if (!n?.id) continue;
+      const productStatus = String(n?.product?.status || "");
+      // Exclude variants whose product is Draft or Archived
+      if (productStatus === "DRAFT" || productStatus === "ARCHIVED") continue;
       const soldQty = Number(variantSales.get(n.id) || 0);
       const velocity = soldQty / windowDays;
       const levels: any[] = n?.inventoryItem?.inventoryLevels?.nodes ?? [];

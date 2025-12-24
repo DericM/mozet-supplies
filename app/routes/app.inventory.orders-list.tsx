@@ -151,7 +151,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
               id
               inventoryLevels(first: 100){
                 nodes{
-                  quantities(names: [AVAILABLE, INCOMING]){ name quantity }
+                  quantities(names: ["AVAILABLE", "INCOMING"]) { name quantity }
                   location{ id name }
                 }
               }
@@ -243,6 +243,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
         "\n\nFix: You're on a newer API version where InventoryLevel.available/incoming were removed." +
         "\nThis route has been updated to use InventoryLevel.quantities(names: [AVAILABLE, INCOMING])." +
         "\nIf you still see this, ensure your app is running the latest build and clear any server cache.";
+    }
+    if (typeof message === "string" && message.includes("Argument 'names' on Field 'quantities' has an invalid value")) {
+      message +=
+        "\n\nFix: The 'names' argument expects a list of strings. It has been corrected to [\"AVAILABLE\", \"INCOMING\"]." +
+        "\nRedeploy and hard refresh to ensure the latest build is active.";
     }
     return {
       items: [] as ReorderRow[],

@@ -275,7 +275,7 @@ export default function InventoryOrdersList() {
   };
 
   return (
-    <Page title="Inventory Reorder Priorities" subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
+    <Page title="Inventory Reorder Priorities" fullWidth subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
       {error && (
         <Card sectioned title="Loader Error">
           <Text as="p" color="critical">{error.message}</Text>

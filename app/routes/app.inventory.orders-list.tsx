@@ -60,9 +60,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   );
 
   // Build Orders query string for the window
-  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10); // YYYY-MM-DD
+  const sinceDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const since = sinceDate.toISOString().slice(0, 10); // YYYY-MM-DD
   const orderQuery = `created_at:>=${since} financial_status:paid status:any`;
 
   // Allow local testing with a fixture: use ?mock=1 or set USE_MOCK=1
@@ -87,7 +86,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Paginate through recent orders (cap to avoid heavy loads)
-  const variantSales: Map<string, number> = new Map(); // variant GID -> qty
+  type VariantSalesInfo = { qty: number; firstAt?: string; lastAt?: string };
+  const variantSales: Map<string, VariantSalesInfo> = new Map(); // variant GID -> info
   let after: string | null = null;
   let fetched = 0;
   const MAX_ORDERS = 250; // hard cap to keep loader responsive
@@ -119,13 +119,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const edges: any[] = connection?.edges ?? [];
     for (const e of edges) {
       fetched += 1;
+      const createdAt: string | undefined = e?.node?.createdAt;
       const items = e?.node?.lineItems?.nodes ?? [];
       for (const li of items) {
         const v = li?.variant;
         if (!v?.id) continue;
         const qty = Number(li?.quantity || 0);
         if (!qty) continue;
-        variantSales.set(v.id, (variantSales.get(v.id) || 0) + qty);
+        const info = variantSales.get(v.id) || { qty: 0 };
+        info.qty += qty;
+        if (createdAt) {
+          if (!info.firstAt || createdAt < info.firstAt) info.firstAt = createdAt;
+          if (!info.lastAt || createdAt > info.lastAt) info.lastAt = createdAt;
+        }
+        variantSales.set(v.id, info);
       }
     }
     if (!connection?.pageInfo?.hasNextPage || fetched >= MAX_ORDERS) break;
@@ -182,8 +189,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const productStatus = String(n?.product?.status || "");
       // Exclude variants whose product is Draft or Archived
       if (productStatus === "DRAFT" || productStatus === "ARCHIVED") continue;
-      const soldQty = Number(variantSales.get(n.id) || 0);
-      const velocity = soldQty / windowDays;
+      const info = variantSales.get(n.id);
+      const soldQty = Number(info?.qty || 0);
       const levels: any[] = n?.inventoryItem?.inventoryLevels?.nodes ?? [];
       const onHand = levels.reduce((acc, lvl) => {
         const qs: any[] = lvl?.quantities ?? [];
@@ -195,10 +202,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
         const inc = qs.find((q) => q?.name === "incoming")?.quantity ?? 0;
         return acc + Number(inc || 0);
       }, 0);
+      // Heuristic in-stock-only velocity
+      let velocity: number;
       let daysOfCover: number;
-      if (velocity <= 0) {
+      if (soldQty <= 0) {
+        velocity = 0;
         daysOfCover = Infinity;
       } else {
+        // In-stock period heuristic within the window
+        const firstAtStr = info?.firstAt;
+        const lastAtStr = info?.lastAt;
+        const firstAt = firstAtStr ? new Date(firstAtStr) : null;
+        const lastAt = lastAtStr ? new Date(lastAtStr) : null;
+        // Start: treat first sale as the day it became in stock (bounded by window start)
+        const start = firstAt && firstAt > sinceDate ? firstAt : sinceDate;
+        // End: if on-hand is zero, treat last sale as the day it went out of stock; else "now"
+        const now = new Date();
+        const end = onHand === 0 && lastAt ? lastAt : now;
+        const ms = Math.max(0, end.getTime() - start.getTime());
+        const inStockDays = Math.max(1, ms / (24 * 60 * 60 * 1000));
+        velocity = soldQty / inStockDays;
         // Days of cover based solely on current on-hand inventory (never negative)
         daysOfCover = onHand / velocity;
       }

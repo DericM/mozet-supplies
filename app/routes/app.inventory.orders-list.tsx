@@ -151,7 +151,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
               id
               inventoryLevels(first: 100){
                 nodes{
-                  quantities(names: ["AVAILABLE", "INCOMING"]) { name quantity }
+                  quantities(names: ["available", "incoming"]) { name quantity }
                   location{ id name }
                 }
               }
@@ -170,12 +170,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const levels: any[] = n?.inventoryItem?.inventoryLevels?.nodes ?? [];
       const onHand = levels.reduce((acc, lvl) => {
         const qs: any[] = lvl?.quantities ?? [];
-        const avail = qs.find((q) => q?.name === "AVAILABLE")?.quantity ?? 0;
+        const avail = qs.find((q) => q?.name === "available")?.quantity ?? 0;
         return acc + Number(avail || 0);
       }, 0);
       const incoming = levels.reduce((acc, lvl) => {
         const qs: any[] = lvl?.quantities ?? [];
-        const inc = qs.find((q) => q?.name === "INCOMING")?.quantity ?? 0;
+        const inc = qs.find((q) => q?.name === "incoming")?.quantity ?? 0;
         return acc + Number(inc || 0);
       }, 0);
       let daysOfCover: number;
@@ -246,7 +246,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
     if (typeof message === "string" && message.includes("Argument 'names' on Field 'quantities' has an invalid value")) {
       message +=
-        "\n\nFix: The 'names' argument expects a list of strings. It has been corrected to [\"AVAILABLE\", \"INCOMING\"]." +
+        "\n\nFix: The 'names' argument expects a list of strings using lower-case enum values." +
+        "\nThis route now uses quantities(names: [\"available\", \"incoming\"])." +
         "\nRedeploy and hard refresh to ensure the latest build is active.";
     }
     return {

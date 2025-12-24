@@ -21,8 +21,8 @@ type ReorderRow = {
 };
 
 const DEFAULT_WINDOW_DAYS = 180; // 6 months
-const DEFAULT_LEAD_TIME_DAYS = 14;
-const DEFAULT_TARGET_COVER_DAYS = 21; // aim to have 3 weeks on hand after ordering
+const DEFAULT_LEAD_TIME_DAYS = 30;
+const DEFAULT_TARGET_COVER_DAYS = 90; // aim to have ~3 months on hand after ordering
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -283,6 +283,7 @@ export default function InventoryOrdersList() {
         </Card>
       )}
       <Card>
+        <div style={{ width: "100%", overflowX: "auto" }}>
         <IndexTable
           resourceName={{ singular: "variant", plural: "variants" }}
           itemCount={items.length}
@@ -328,6 +329,7 @@ export default function InventoryOrdersList() {
             </IndexTable.Row>
           ))}
         </IndexTable>
+        </div>
       </Card>
     </Page>
   );

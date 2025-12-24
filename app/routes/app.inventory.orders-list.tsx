@@ -181,11 +181,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       let daysOfCover: number;
       if (velocity <= 0) {
         daysOfCover = Infinity;
-      } else if (onHand + incoming === 0) {
-        // If we've been completely out of stock (no on-hand and no incoming),
-        // represent severity as negative cover equal to the window length.
-        daysOfCover = -windowDays;
       } else {
+        // Days of cover based solely on current on-hand inventory (never negative)
         daysOfCover = onHand / velocity;
       }
       const reorderPoint = velocity * leadTimeDays;

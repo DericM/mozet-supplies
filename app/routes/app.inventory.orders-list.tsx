@@ -91,6 +91,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   let after: string | null = null;
   let fetched = 0;
   const MAX_ORDERS = 250; // hard cap to keep loader responsive
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const resp = await admin.graphql(
       `#graphql
@@ -347,8 +348,9 @@ export default function InventoryOrdersList() {
   return (
     <Page title="Inventory Reorder Priorities" fullWidth subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
       {error && (
-        <Card sectioned title="Loader Error">
-          <Text as="p" color="critical">{error.message}</Text>
+        <Card>
+          <Text as="p" variant="bodyMd" fontWeight="semibold">Loader Error</Text>
+          <Text as="p" tone="critical">{error.message}</Text>
           {error.stack && <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>{error.stack}</pre>}
         </Card>
       )}

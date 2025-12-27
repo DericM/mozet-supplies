@@ -1,13 +1,14 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs, HeadersFunction } from "react-router";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { LoaderFunction, ActionFunctionArgs, HeadersFunction } from "react-router";
 import { useLoaderData, Form } from "react-router";
 import prisma from "../db.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+export const loader: LoaderFunction = async () => {
   try {
-    const tables = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+    const tables = (await prisma.$queryRawUnsafe(
       "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    );
+    )) as Array<{ name: string }>;
     const sessionCount = await prisma.session.count().catch(() => 0);
     const sessions = await prisma.session.findMany({
       select: { id: true, shop: true, isOnline: true, scope: true },

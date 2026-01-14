@@ -8,7 +8,7 @@ import { Page, Card, Button, IndexTable, useIndexResourceState, TextField, Text,
 
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { buildVariantQueryString } from "../lib/search";
+import { buildVariantQueryString, toNumericId } from "../lib/search";
 
 const PLACEHOLDER_IMG =
   "https://cdn.shopify.com/s/images/admin/no-image-compact-illustration.svg";
@@ -205,6 +205,7 @@ export default function Labels() {
   const apiKeyFromParent: string | undefined = parentData ? (parentData as any).apiKey : undefined;
 
   const location = useLocation();
+  const shopFromQuery = (new URLSearchParams(location.search)).get("shop") || undefined;
   const navigate = useNavigate();
   const nav = useNavigation();
   const addFetcher = useFetcher<{ ok: boolean; updated: number; errors?: string[] }>();
@@ -639,6 +640,7 @@ export default function Labels() {
             key={`labels-table-${tableMountKey}`}
             rows={rows}
             onSelectionIdsChange={setSelectedIds}
+            shop={shopFromQuery}
           />
         </div>
 
@@ -678,9 +680,10 @@ export default function Labels() {
 type LabelsIndexTableProps = {
   rows: VariantRow[];
   onSelectionIdsChange: (ids: string[]) => void;
+  shop?: string;
 };
 
-function LabelsIndexTable({ rows, onSelectionIdsChange }: LabelsIndexTableProps) {
+function LabelsIndexTable({ rows, onSelectionIdsChange, shop }: LabelsIndexTableProps) {
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(rows);
 
   useEffect(() => {
@@ -702,13 +705,38 @@ function LabelsIndexTable({ rows, onSelectionIdsChange }: LabelsIndexTableProps)
     >
       {rows.map((item, index) => {
         const secondary = item.variantTitle && item.variantTitle !== "Default Title" ? item.variantTitle : null;
+        const productNumericId = item.productId ? toNumericId(item.productId) : undefined;
+        const productAdminUrl = shop && productNumericId ? `https://${shop}/admin/products/${productNumericId}` : undefined;
+        const sku = item.sku ?? null;
+        const skuPrefix = sku ? sku.slice(0, 7) : "";
+        const skuRemainder = sku ? sku.slice(7) : "";
         return (
           <IndexTable.Row id={item.id} key={item.id} position={index} selected={selectedResources.includes(item.id)}>
             <IndexTable.Cell>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <Thumbnail source={item.productImage || PLACEHOLDER_IMG} alt={item.productTitle} size="small" />
                 <div>
-                  <Text as="span" variant="bodyMd" fontWeight="medium">{item.productTitle}</Text>
+                  {productAdminUrl ? (
+                    <a
+                      href={productAdminUrl}
+                      target="_top"
+                      rel="noreferrer"
+                      style={{ color: "inherit", textDecoration: "none", cursor: "pointer" }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.textDecoration = "underline";
+                        e.currentTarget.style.textUnderlineOffset = "2px";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.textDecoration = "none";
+                      }}
+                    >
+                      <Text as="span" variant="bodyMd" fontWeight="medium">{item.productTitle}</Text>
+                    </a>
+                  ) : (
+                    <Text as="span" variant="bodyMd" fontWeight="medium">{item.productTitle}</Text>
+                  )}
                   {secondary ? (
                     <Text as="span" variant="bodySm" tone="subdued">{" "}- {secondary}</Text>
                   ) : null}
@@ -717,7 +745,16 @@ function LabelsIndexTable({ rows, onSelectionIdsChange }: LabelsIndexTableProps)
             </IndexTable.Cell>
             <IndexTable.Cell><Text as="span" variant="bodyMd">{item.productType ?? "—"}</Text></IndexTable.Cell>
             <IndexTable.Cell><Text as="span" variant="bodyMd">{item.vendor ?? "—"}</Text></IndexTable.Cell>
-            <IndexTable.Cell><Text as="span" variant="bodyMd">{item.sku ?? "—"}</Text></IndexTable.Cell>
+            <IndexTable.Cell>
+              {sku ? (
+                <Text as="span" variant="bodyMd">
+                  <span style={{ fontWeight: 600 }}>{skuPrefix}</span>
+                  {skuRemainder}
+                </Text>
+              ) : (
+                <Text as="span" variant="bodyMd">—</Text>
+              )}
+            </IndexTable.Cell>
           </IndexTable.Row>
         );
       })}

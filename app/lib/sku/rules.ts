@@ -107,6 +107,15 @@ export function buildSku(
   const TT = typeToTT(typeRaw);
   const VV = vendorToVV(vendorRaw);
   const SSS = String(Math.max(0, Math.floor(seq))).padStart(3, "0");
-  const OO = optionValues.map((v) => optionToTT(v)).join("");
+  const cleanedOptionValues = (optionValues ?? [])
+    .map((v) => (typeof v === "string" ? v.trim() : ""))
+    .filter((v) => v.length > 0);
+
+  // If a variant only has one option, omit the option suffix entirely.
+  // (Option suffixes are only helpful for disambiguating multi-option variants.)
+  const OO = cleanedOptionValues.length > 1
+    ? cleanedOptionValues.map((v) => optionToTT(v)).join("")
+    : "";
+
   return `${VV}${TT}${SSS}${OO}`;
 }

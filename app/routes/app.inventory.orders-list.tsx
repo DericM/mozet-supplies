@@ -1,14 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useLoaderData } from "react-router";
+import { startTransition, useEffect, useRef, useState } from "react";
+import { useLoaderData, useLocation, useNavigate, useNavigation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { Page, Card, IndexTable, Text } from "@shopify/polaris";
+import { Page, Card, IndexTable, Text, TextField, Thumbnail } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { toNumericId } from "../lib/search";
 
 type ReorderRow = {
   id: string; // Variant GID
   sku: string | null;
   title: string;
+  productId?: string | null;
   productTitle: string;
+  productImage?: string | null;
   vendor: string | null;
   priceAmount: number | null;
   currencyCode: string | null;
@@ -27,9 +31,13 @@ const DEFAULT_WINDOW_DAYS = 730; // 2 years
 const DEFAULT_LEAD_TIME_DAYS = 30;
 const DEFAULT_TARGET_COVER_DAYS = 365; // aim to have ~1 year on hand after ordering
 
+const PLACEHOLDER_IMG =
+  "https://cdn.shopify.com/s/images/admin/no-image-compact-illustration.svg";
+
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
   const { admin, session } = await authenticate.admin(request);
+  const shop = session?.shop || null;
   // Fetch shop currency code once for formatting
   let shopCurrency: string | null = null;
   try {
@@ -41,6 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim();
   // Respect API scope limits: without read_all_orders Shopify only allows 60 days of order history
   const scopes = new Set<string>((session?.scope || "").split(",").filter(Boolean));
   const hasReadAllOrders = scopes.has("read_all_orders");
@@ -73,7 +82,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const p = path.join(process.cwd(), "app", "data", "mock-reorder.json");
       const raw = await fs.readFile(p, "utf8");
       const obj = JSON.parse(raw);
-      return obj;
+      return { ...obj, q, shop };
     } catch (err) {
       return {
         items: [] as any[],
@@ -81,6 +90,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         leadTimeDays,
         targetCoverDays,
         generatedAt: new Date().toISOString(),
+        q,
+        shop,
       };
     }
   }
@@ -168,7 +179,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             sku
             title
             price
-            product{ title vendor status }
+            product{ id title vendor status featuredImage{ url } }
             inventoryItem{
               id
               inventoryLevels(first: 100){
@@ -249,7 +260,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
           id: n.id,
           sku: n.sku ?? null,
           title: String(n.title || "Variant"),
+          productId: n?.product?.id ?? null,
           productTitle: String(n?.product?.title || "Product"),
+          productImage: n?.product?.featuredImage?.url ?? null,
           vendor: n?.product?.vendor ?? null,
           priceAmount: n?.price != null ? Number(n.price) : null,
           currencyCode: shopCurrency,
@@ -284,6 +297,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     leadTimeDays,
     targetCoverDays,
     generatedAt: new Date().toISOString(),
+    q,
+    shop,
   };
   } catch (err: any) {
     console.error("InventoryOrdersList loader error:", err);
@@ -317,6 +332,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       leadTimeDays: Number(new URL(request.url).searchParams.get("leadTimeDays")) || DEFAULT_LEAD_TIME_DAYS,
       targetCoverDays: Number(new URL(request.url).searchParams.get("targetCoverDays")) || DEFAULT_TARGET_COVER_DAYS,
       generatedAt: new Date().toISOString(),
+      q: (new URL(request.url).searchParams.get("q") || "").trim(),
+      shop: null,
       error: {
         message,
         stack: err?.stack,
@@ -326,14 +343,80 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function InventoryOrdersList() {
-  const { items, windowDays, leadTimeDays, targetCoverDays, error } = useLoaderData() as {
+  const { items, windowDays, leadTimeDays, targetCoverDays, q, shop, error } = useLoaderData() as {
     items: ReorderRow[];
     windowDays: number;
     leadTimeDays: number;
     targetCoverDays: number;
     generatedAt: string;
+    q?: string;
+    shop?: string | null;
     error?: { message: string; stack?: string };
   };
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const nav = useNavigation();
+
+  const [searchInput, setSearchInput] = useState(q ?? "");
+  const lastPushedQ = useRef<string | null>(q ?? null);
+  useEffect(() => {
+    const now = q ?? "";
+    if (lastPushedQ.current !== now && nav.state === "idle") setSearchInput(now);
+  }, [q, nav.state]);
+
+  const [windowDaysInput, setWindowDaysInput] = useState(String(windowDays ?? ""));
+  const [leadTimeDaysInput, setLeadTimeDaysInput] = useState(String(leadTimeDays ?? ""));
+  const [targetCoverDaysInput, setTargetCoverDaysInput] = useState(String(targetCoverDays ?? ""));
+  useEffect(() => {
+    if (nav.state !== "idle") return;
+    setWindowDaysInput(String(windowDays ?? ""));
+    setLeadTimeDaysInput(String(leadTimeDays ?? ""));
+    setTargetCoverDaysInput(String(targetCoverDays ?? ""));
+  }, [windowDays, leadTimeDays, targetCoverDays, nav.state]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(location.search);
+
+      const nextQ = (searchInput || "").trim();
+      if (nextQ) params.set("q", nextQ);
+      else params.delete("q");
+
+      // Keep user-entered values in the URL; loader will clamp.
+      const wd = Number(windowDaysInput);
+      const ld = Number(leadTimeDaysInput);
+      const td = Number(targetCoverDaysInput);
+      if (!Number.isNaN(wd) && wd > 0) params.set("windowDays", String(wd));
+      if (!Number.isNaN(ld) && ld >= 0) params.set("leadTimeDays", String(ld));
+      if (!Number.isNaN(td) && td >= 0) params.set("targetCoverDays", String(td));
+
+      const nextSearch = `?${params.toString()}`;
+      if (nextSearch !== location.search) {
+        lastPushedQ.current = nextQ;
+        startTransition(() => {
+          navigate({ pathname: location.pathname, search: nextSearch }, { replace: true, preventScrollReset: true });
+        });
+      }
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput, windowDaysInput, leadTimeDaysInput, targetCoverDaysInput]);
+
+  const tokens = (q || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const filteredItems = tokens.length
+    ? items.filter((it) => {
+        const haystack = [it.productTitle, it.title, it.sku, it.vendor]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return tokens.every((t) => haystack.includes(t));
+      })
+    : items;
 
   function formatCurrency(amount: number, currencyCode?: string | null) {
     const code = currencyCode || "USD";
@@ -346,7 +429,7 @@ export default function InventoryOrdersList() {
   }
 
   return (
-    <Page title="Inventory Reorder Priorities" fullWidth subtitle={`Window ${windowDays}d • Lead ${leadTimeDays}d • Target cover ${targetCoverDays}d`}>
+    <Page title="Inventory Reorder Priorities" fullWidth>
       {error && (
         <Card>
           <Text as="p" variant="bodyMd" fontWeight="semibold">Loader Error</Text>
@@ -355,10 +438,54 @@ export default function InventoryOrdersList() {
         </Card>
       )}
       <Card>
+        <div style={{ display: "flex", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <TextField
+              label="Search"
+              labelHidden
+              value={searchInput}
+              onChange={setSearchInput}
+              autoComplete="off"
+              placeholder="Search product, variant, SKU, vendor…"
+            />
+            <Text as="span" variant="bodySm" tone="subdued">
+              {nav.state !== "idle" ? "Loading…" : `${filteredItems.length} results${q ? ` for “${q}”` : ""}`}
+            </Text>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 140 }}>
+              <TextField
+                label="Window (days)"
+                value={windowDaysInput}
+                onChange={setWindowDaysInput}
+                autoComplete="off"
+                type="number"
+              />
+            </div>
+            <div style={{ minWidth: 140 }}>
+              <TextField
+                label="Lead (days)"
+                value={leadTimeDaysInput}
+                onChange={setLeadTimeDaysInput}
+                autoComplete="off"
+                type="number"
+              />
+            </div>
+            <div style={{ minWidth: 170 }}>
+              <TextField
+                label="Target cover (days)"
+                value={targetCoverDaysInput}
+                onChange={setTargetCoverDaysInput}
+                autoComplete="off"
+                type="number"
+              />
+            </div>
+          </div>
+        </div>
         <div style={{ width: "100%", overflowX: "auto" }}>
         <IndexTable
           resourceName={{ singular: "variant", plural: "variants" }}
-          itemCount={items.length}
+          itemCount={filteredItems.length}
           selectable={false}
           headings={[
             { title: "Product" },
@@ -374,14 +501,57 @@ export default function InventoryOrdersList() {
             { title: "Suggest qty" },
           ]}
         >
-          {items.map((it, idx) => (
+          {filteredItems.map((it, idx) => {
+            const productNumericId = it.productId ? toNumericId(it.productId) : undefined;
+            const productAdminUrl = shop && productNumericId ? `https://${shop}/admin/products/${productNumericId}` : undefined;
+            const sku = it.sku ?? null;
+            const skuPrefix = sku ? sku.slice(0, 7) : "";
+            const skuRemainder = sku ? sku.slice(7) : "";
+            const secondary = it.title && it.title !== "Default Title" ? it.title : null;
+            return (
             <IndexTable.Row id={it.id} key={it.id} position={idx}>
               <IndexTable.Cell>
-                <Text as="span" variant="bodyMd" fontWeight="semibold">{it.productTitle}</Text>
-                {it.title ? <span>{" - "}{it.title}</span> : null}
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Thumbnail source={it.productImage || PLACEHOLDER_IMG} alt={it.productTitle} size="small" />
+                  <div>
+                    {productAdminUrl ? (
+                      <a
+                        href={productAdminUrl}
+                        target="_top"
+                        rel="noreferrer"
+                        style={{ color: "inherit", textDecoration: "none", cursor: "pointer" }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.textDecoration = "underline";
+                          e.currentTarget.style.textUnderlineOffset = "2px";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.textDecoration = "none";
+                        }}
+                      >
+                        <Text as="span" variant="bodyMd" fontWeight="medium">{it.productTitle}</Text>
+                      </a>
+                    ) : (
+                      <Text as="span" variant="bodyMd" fontWeight="medium">{it.productTitle}</Text>
+                    )}
+                    {secondary ? (
+                      <Text as="span" variant="bodySm" tone="subdued">{" "}- {secondary}</Text>
+                    ) : null}
+                  </div>
+                </div>
               </IndexTable.Cell>
               <IndexTable.Cell>{it.vendor || "—"}</IndexTable.Cell>
-              <IndexTable.Cell>{it.sku || "—"}</IndexTable.Cell>
+              <IndexTable.Cell>
+                {sku ? (
+                  <Text as="span" variant="bodyMd">
+                    <span style={{ fontWeight: 600 }}>{skuPrefix}</span>
+                    {skuRemainder}
+                  </Text>
+                ) : (
+                  <Text as="span" variant="bodyMd">—</Text>
+                )}
+              </IndexTable.Cell>
               <IndexTable.Cell>{it.soldQty}</IndexTable.Cell>
               <IndexTable.Cell>{it.velocityPerDay.toFixed(2)}</IndexTable.Cell>
               <IndexTable.Cell>{it.onHand}</IndexTable.Cell>
@@ -395,7 +565,8 @@ export default function InventoryOrdersList() {
                 <Text as="span" variant="bodyMd" fontWeight="bold">{it.suggestedOrderQty}</Text>
               </IndexTable.Cell>
             </IndexTable.Row>
-          ))}
+          );
+          })}
         </IndexTable>
         </div>
       </Card>

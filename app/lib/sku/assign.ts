@@ -1,6 +1,6 @@
 // app/lib/sku/assign.ts
 import type { AdminClient, ProductForSku, VariantForSku } from "./types";
-import { groupKey, buildSku, typeToTT, vendorToVV } from "./rules";
+import { groupKey, buildSku, typeToTT, vendorToVV, buildUniqueOptionCodes, optionToTT } from "./rules";
 import { reserveNextForGroup } from "./sequence";
 
 const PRODUCT_FOR_SKU_Q = `#graphql
@@ -62,6 +62,13 @@ function buildVariantOptionValues(v: VariantForSku) {
   return so.length
     ? so.map((o) => ({ optionName: o.name, name: o.value }))
     : [{ optionName: "Title", name: "Default Title" }];
+}
+
+function normalizeOptionValue(valueRaw: string): string {
+  let base = valueRaw;
+  const idx = base.indexOf("|");
+  if (idx !== -1) base = base.slice(0, idx);
+  return base.trim();
 }
 
 export async function ensureSkusForProduct(
@@ -145,6 +152,23 @@ export async function ensureSkusForProduct(
     return;
   }
 
+  // 3b) Determine which option dimensions actually vary across this product.
+  // Include option codes only for option names with >1 distinct values.
+  const productOptions = (product.options ?? []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const varyingOptionNames = new Set<string>();
+  const codeMapByOptionName = new Map<string, Map<string, string>>();
+
+  for (const opt of productOptions as Array<{ name: string; position?: number | null; values: string[] }>) {
+    const values = (opt.values ?? [])
+      .map((v) => normalizeOptionValue(v))
+      .filter((v) => v.length > 0 && v !== "Default Title");
+    const distinct = new Set(values);
+    if (distinct.size > 1) {
+      varyingOptionNames.add(opt.name);
+      codeMapByOptionName.set(opt.name, buildUniqueOptionCodes(values));
+    }
+  }
+
   // 4) Choose sequence: reuse existing when group unchanged; otherwise reserve new
   let seq: number;
   if (existingSeq !== null && groupUnchanged) {
@@ -156,12 +180,29 @@ export async function ensureSkusForProduct(
   // 5) Build final updates with chosen sequence
   const toUpdate: VariantSetInput[] = pending.map((p) => ({
     id: p.id,
-    sku: buildSku(
-      typeRaw,
-      vendorRaw,
-      seq,
-      p.hasRealOptions ? p.optionValues.map((ov) => ov.name) : []
-    ),
+    sku: (() => {
+      if (!p.hasRealOptions || varyingOptionNames.size === 0) {
+        return buildSku(typeRaw, vendorRaw, seq, []);
+      }
+
+      const selectedByName = new Map<string, string>();
+      for (const ov of p.optionValues) {
+        selectedByName.set(ov.optionName, normalizeOptionValue(ov.name));
+      }
+
+      const codes: string[] = [];
+      // Preserve product option order; append codes only for varying dimensions.
+      for (const opt of productOptions as Array<{ name: string; position?: number | null; values: string[] }>) {
+        if (!varyingOptionNames.has(opt.name)) continue;
+        const value = selectedByName.get(opt.name);
+        if (!value) continue;
+        const codeMap = codeMapByOptionName.get(opt.name);
+        const code = codeMap?.get(value) ?? optionToTT(value);
+        codes.push(code);
+      }
+
+      return buildSku(typeRaw, vendorRaw, seq, codes);
+    })(),
     optionValues: p.optionValues,
   }));
 

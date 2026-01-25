@@ -89,6 +89,86 @@ export function optionToTT(valueRaw?: string): string {
   return initialsPriorityAbbrevN(valueRaw, 2);
 }
 
+function normalizeOptionValue(valueRaw: string): string {
+  let base = valueRaw;
+  const idx = base.indexOf("|");
+  if (idx !== -1) base = base.slice(0, idx);
+  return base.trim();
+}
+
+function optionSecondCharCandidates(normalized: string): string[] {
+  const cleaned = normalized.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!cleaned) return ["X"];
+  const first = cleaned[0]!;
+
+  const isVowel = (ch: string) => /^[AEIOU]$/.test(ch);
+  const isConsonant = (ch: string) => /^[A-Z]$/.test(ch) && !isVowel(ch);
+
+  const consonantsOrDigits: string[] = [];
+  const vowels: string[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 1; i < cleaned.length; i++) {
+    const ch = cleaned[i]!;
+    if (ch === first) continue;
+    if (seen.has(ch)) continue;
+    if (/\d/.test(ch) || isConsonant(ch)) consonantsOrDigits.push(ch);
+    else if (isVowel(ch)) vowels.push(ch);
+    else consonantsOrDigits.push(ch);
+    seen.add(ch);
+  }
+
+  const out = [...consonantsOrDigits, ...vowels];
+  return out.length > 0 ? out : ["X"];
+}
+
+// Build unique 2-char codes for a set of option values.
+// Example: ["Brown","Burgundy"] => BR, BG
+export function buildUniqueOptionCodes(values: string[]): Map<string, string> {
+  const normalizedValuesInOrder = (values ?? [])
+    .map((v) => (typeof v === "string" ? normalizeOptionValue(v) : ""))
+    .filter((v) => v.length > 0);
+
+  const uniqueInOrder: string[] = [];
+  const seen = new Set<string>();
+  for (const v of normalizedValuesInOrder) {
+    const key = v;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueInOrder.push(v);
+  }
+
+  const used = new Set<string>();
+  const map = new Map<string, string>();
+
+  for (const v of uniqueInOrder) {
+    const cleaned = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const first = (cleaned[0] ?? "X").toUpperCase();
+
+    const candidates: string[] = [];
+    // Prefer the existing abbreviation algorithm first.
+    candidates.push(optionToTT(v));
+    for (const second of optionSecondCharCandidates(v)) {
+      candidates.push(`${first}${second}`);
+    }
+    candidates.push(`${first}X`);
+
+    let chosen: string | null = null;
+    for (const c of candidates) {
+      const code = c.toUpperCase().replace(/[^A-Z0-9]/g, "").padEnd(2, "X").slice(0, 2);
+      if (!used.has(code)) {
+        chosen = code;
+        break;
+      }
+    }
+    if (!chosen) chosen = "XX";
+    used.add(chosen);
+    map.set(v, chosen);
+  }
+
+  return map;
+}
+
 // Group key: still coarse to share sequence across variants of same type/vendor
 export const groupKey = (typeRaw?: string, vendorRaw?: string) =>
   `${typeToTT(typeRaw)}-${vendorToVV(vendorRaw)}`;
@@ -102,20 +182,14 @@ export function buildSku(
   typeRaw: string | undefined,
   vendorRaw: string | undefined,
   seq: number,
-  optionValues: string[]
+  optionCodes: string[]
 ): string {
   const TT = typeToTT(typeRaw);
   const VV = vendorToVV(vendorRaw);
   const SSS = String(Math.max(0, Math.floor(seq))).padStart(3, "0");
-  const cleanedOptionValues = (optionValues ?? [])
-    .map((v) => (typeof v === "string" ? v.trim() : ""))
-    .filter((v) => v.length > 0);
-
-  // If a variant only has one option, omit the option suffix entirely.
-  // (Option suffixes are only helpful for disambiguating multi-option variants.)
-  const OO = cleanedOptionValues.length > 1
-    ? cleanedOptionValues.map((v) => optionToTT(v)).join("")
-    : "";
-
+  const OO = (optionCodes ?? [])
+    .map((c) => (typeof c === "string" ? c.trim().toUpperCase() : ""))
+    .filter((c) => c.length > 0)
+    .join("");
   return `${VV}${TT}${SSS}${OO}`;
 }
